@@ -29,3 +29,10 @@ jobs:
         run: |
           deno check supabase/functions/health/index.ts
           deno check supabase/functions/account-me/index.ts
+      - name: Start local Supabase stack
+        run: supabase start
+      - name: Apply database migrations
+        run: supabase db reset --local
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup
