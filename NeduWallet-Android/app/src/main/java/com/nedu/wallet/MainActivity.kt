@@ -162,9 +162,36 @@ fun NeduApp() {
                 )
                 "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it })
                 "card" -> CardScreen(onNavigate = { screen = it })
+                "edit-profile" -> EditProfileScreen(
+                    profile = profile,
+                    errorMessage = authError,
+                    loading = isLoading,
+                    onBack = { authError = null; screen = "profile" },
+                    onSave = { name, phoneValue ->
+                        val repository = walletRepository
+                        if (repository == null) {
+                            authError = "Profile service is not configured in this build."
+                        } else {
+                            scope.launch {
+                                isLoading = true
+                                authError = null
+                                try {
+                                    repository.updateMyProfile(name, phoneValue)
+                                    profile = repository.loadMyProfile()
+                                    screen = "profile"
+                                } catch (error: Exception) {
+                                    authError = error.message ?: "Unable to save your profile."
+                                } finally {
+                                    isLoading = false
+                                }
+                            }
+                        }
+                    }
+                )
                 else -> ProfileScreen(
                     profile = profile,
                     onNavigate = { screen = it },
+                    onEditProfile = { authError = null; screen = "edit-profile" },
                     onSignOut = {
                         val repository = walletRepository
                         if (repository != null) {
@@ -429,7 +456,12 @@ fun CardScreen(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onSignOut: () -> Unit) {
+fun ProfileScreen(
+    profile: AccountProfile?,
+    onNavigate: (String) -> Unit,
+    onEditProfile: () -> Unit,
+    onSignOut: () -> Unit
+) {
     Scaffold(bottomBar = { BottomBar("profile", onNavigate) }) {
         Column(Modifier.fillMaxSize().padding(it).padding(22.dp)) {
             Spacer(Modifier.height(24.dp))
@@ -445,10 +477,16 @@ fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onSign
                 Text(country, color = Muted, modifier = Modifier.padding(top = 4.dp))
             }
             Spacer(Modifier.height(24.dp))
-            listOf("Personal Information", "Security & 2FA", "Backup & Recovery Phrase", "Notifications", "Help & Support", "Terms & Privacy").forEach {
-                Card(Modifier.fillMaxWidth().padding(vertical = 5.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
+            listOf("Personal Information", "Security & 2FA", "Backup & Recovery Phrase", "Notifications", "Help & Support", "Terms & Privacy").forEach { setting ->
+                Card(
+                    Modifier.fillMaxWidth().padding(vertical = 5.dp)
+                        .clickable(enabled = setting == "Personal Information") {
+                            if (setting == "Personal Information") onEditProfile()
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Soft)
+                ) {
                     Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(it, Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                        Text(setting, Modifier.weight(1f), fontWeight = FontWeight.Medium)
                         Icon(Icons.Default.ChevronRight, null, tint = Muted)
                     }
                 }
@@ -456,6 +494,48 @@ fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onSign
             Spacer(Modifier.height(20.dp))
             PrimaryButton("Sign Out", onSignOut)
         }
+    }
+}
+
+@Composable
+fun EditProfileScreen(
+    profile: AccountProfile?,
+    errorMessage: String?,
+    loading: Boolean,
+    onBack: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    var name by remember(profile?.name) { mutableStateOf(profile?.name.orEmpty()) }
+    var phone by remember(profile?.phone) { mutableStateOf(profile?.phone.orEmpty()) }
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding()
+            .padding(horizontal = 22.dp).padding(top = 28.dp, bottom = 24.dp)
+    ) {
+        TextButton(onClick = onBack, enabled = !loading) { Text("Back", color = DeepRed) }
+        Text("Personal Information", fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(8.dp))
+        Text("Update the name and phone number shown on your Nedu Wallet profile.", color = Muted)
+        Spacer(Modifier.height(24.dp))
+        Text("Full name", fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        SoftField(value = name, onValueChange = { name = it }, hint = "Full name")
+        Spacer(Modifier.height(16.dp))
+        Text("Email address", fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        SoftField(value = profile?.email.orEmpty(), onValueChange = {}, hint = "Email address")
+        Spacer(Modifier.height(5.dp))
+        Text("Email changes must be confirmed through Supabase account security.", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(16.dp))
+        Text("Phone number", fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        SoftField(value = phone, onValueChange = { phone = it }, hint = "Phone number", keyboard = KeyboardType.Phone)
+        if (errorMessage != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(errorMessage, color = NeduRed, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(24.dp))
+        PrimaryButton(if (loading) "Saving..." else "Save Changes", { onSave(name, phone) }, enabled = !loading)
     }
 }
 
