@@ -20,7 +20,7 @@ Deno.serve(async (request: Request) => {
   }
 
   const authorization = request.headers.get("Authorization") ?? "";
-  const match = authorization.match(/^Bearer\\s+(.+)$/i);
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
   if (!match) return json(401, { error: "Please sign in again." });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
