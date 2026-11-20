@@ -5,12 +5,6 @@ on:
     paths:
       - "NeduWallet-Android/**"
       - ".github/workflows/android-ci.yml"
-  push:
-    branches:
-      - feature/supabase-live-schema-compatibility
-    paths:
-      - "NeduWallet-Android/**"
-      - ".github/workflows/android-ci.yml"
 
 permissions:
   contents: read
