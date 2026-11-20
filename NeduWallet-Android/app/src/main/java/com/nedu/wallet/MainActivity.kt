@@ -80,7 +80,6 @@ fun NeduApp() {
                     password = password,
                     onPassword = { password = it },
                     errorMessage = authError,
-                    noticeMessage = authNotice,
                     loading = isLoading,
                     onBack = { screen = "welcome" },
                     onSignUp = {
@@ -123,6 +122,7 @@ fun NeduApp() {
                     password = password,
                     onPassword = { password = it },
                     errorMessage = authError,
+                    noticeMessage = authNotice,
                     loading = isLoading,
                     onLogin = {
                         val repository = walletRepository
