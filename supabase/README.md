@@ -58,6 +58,18 @@ supabase functions deploy account-me
 
 Required Edge Function platform variables `SUPABASE_URL` and `SUPABASE_ANON_KEY` are supplied by the Supabase runtime. Do not commit secrets or place the service-role key in Android.
 
+## GitHub Actions deployment (manual)
+
+The repository includes `.github/workflows/supabase-deploy.yml`. It is a manual workflow only; it does not deploy on ordinary pushes or pull requests. Before running it, add these three repository or environment secrets in GitHub **Settings → Secrets and variables → Actions**:
+
+- `SUPABASE_ACCESS_TOKEN`: a Supabase personal access token.
+- `SUPABASE_PROJECT_REF`: the project reference shown in the Supabase Dashboard project settings.
+- `SUPABASE_DB_PASSWORD`: the database password for that project.
+
+Never put these values in source code, commit them, or send them in chat. Then open **Actions → Deploy Supabase Backend → Run workflow**, type `DEPLOY` in the confirmation field, and run it. The workflow links the selected project, applies committed migrations, deploys the two current Edge Functions, and checks the public health endpoint.
+
+The workflow will fail safely if any secret is missing. Do not run it against a production project containing user data until a reviewed backup and explicit deployment plan exist. The successful local CI tests are not a substitute for reviewing the target project and its existing schema before applying migrations.
+
 ## Important migration boundaries
 
 - Do not delete, rename or rewrite `backend/`, Prisma migrations, Render config, or existing Android files while this replacement is being built.
