@@ -74,3 +74,15 @@ The iOS source is not present in this GitHub repository. Repository search canno
 - Android Supabase Auth/data integration
 - staging test report and production backup/rollback plan
 - explicit approval for production changes
+
+
+## Read-only account endpoint now adapted
+
+The `account-me` function on this compatibility branch now:
+- validates the caller's Supabase access token with `auth.getUser()`;
+- uses the caller JWT and anon/publishable key, preserving RLS (no service-role bypass);
+- reads only the authenticated user's existing profile and all wallet currency rows;
+- returns existing profile fields and a `wallets[]` collection using `code/name/balance/is_crypto`;
+- preserves Postgres numeric balances as strings rather than converting money to JavaScript floating-point numbers.
+
+This function change has **not** been deployed or tested against the live project. It assumes the column inventory supplied by the project owner is complete and that the existing RLS policies allow the owner to select their own profile and wallet rows. Confirm the response shape against the iOS app before Android adopts it.
