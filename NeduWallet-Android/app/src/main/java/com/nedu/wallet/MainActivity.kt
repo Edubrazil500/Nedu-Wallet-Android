@@ -236,16 +236,19 @@ fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -
                 }
                 Spacer(Modifier.height(18.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ActionTile("↑", "Send", Modifier.weight(1f)) { onNavigate("transfer") }
-                    ActionTile("↓", "Receive", Modifier.weight(1f)) { onNavigate("receive") }
-                    ActionTile("⇄", "Swap", Modifier.weight(1f)) { onNavigate("swap") }
-                    ActionTile("◎", "Transfer", Modifier.weight(1f)) { onNavigate("transfer") }
+                    ActionTile("↑", "Send", Modifier.weight(1f))
+                    ActionTile("↓", "Receive", Modifier.weight(1f))
+                    ActionTile("⇄", "Swap", Modifier.weight(1f))
+                    ActionTile("◎", "Transfer", Modifier.weight(1f))
                 }
-                Spacer(Modifier.height(24.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Your Wallets - Tap to open", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                    Text("Tap eye to hide", color = Muted, fontSize = 12.sp)
-                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Send, receive, swap and transfer will be enabled after their secure server-side workflows are verified.",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(18.dp))
+                Text("Your Wallets", fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
             }
             if (wallets.isEmpty()) {
@@ -283,7 +286,6 @@ fun WalletRow(flag: String, name: String, code: String, amount: String, hidden: 
                 Text(if (hidden) "••••" else amount, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text("Available balance", color = Muted, fontSize = 12.sp)
             }
-            Icon(Icons.Default.ChevronRight, null, tint = Muted)
         }
     }
 }
@@ -345,8 +347,8 @@ fun BottomBar(selected: String, onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun ActionTile(symbol: String, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(modifier.height(86.dp).clickable { onClick() }, shape = RoundedCornerShape(18.dp),
+fun ActionTile(symbol: String, label: String, modifier: Modifier = Modifier) {
+    Card(modifier.height(86.dp), shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Text(symbol, color = DeepRed, fontSize = 27.sp)
