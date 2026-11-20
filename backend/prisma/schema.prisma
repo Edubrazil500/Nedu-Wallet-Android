@@ -5,11 +5,38 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-enum WalletStatus { ACTIVE FROZEN CLOSED }
-enum LedgerAccountType { USER_WALLET FLUTTERWAVE_CLEARING FEES_REVENUE WITHDRAWAL_PAYABLE }
-enum EntryDirection { DEBIT CREDIT }
-enum PaymentStatus { PENDING PROCESSING SUCCEEDED FAILED REVERSED }
-enum PaymentKind { DEPOSIT WITHDRAWAL TRANSFER VIRTUAL_ACCOUNT }
+enum WalletStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum LedgerAccountType {
+  USER_WALLET
+  FLUTTERWAVE_CLEARING
+  FEES_REVENUE
+  WITHDRAWAL_PAYABLE
+}
+
+enum EntryDirection {
+  DEBIT
+  CREDIT
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REVERSED
+}
+
+enum PaymentKind {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+  VIRTUAL_ACCOUNT
+}
 model User {
   id String @id @default(uuid())
   email String @unique
