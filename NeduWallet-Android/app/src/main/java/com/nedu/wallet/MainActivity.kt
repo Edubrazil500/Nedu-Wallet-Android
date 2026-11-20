@@ -239,7 +239,6 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(value = password, onValueChange = onPassword, modifier = Modifier.fillMaxWidth(),
             textStyle = TextStyle(color = Ink, fontSize = 16.sp),
-            cursorBrush = SolidColor(NeduRed),
             placeholder = { Text("Password", color = Color.LightGray) },
             shape = RoundedCornerShape(18.dp), singleLine = true,
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -499,7 +498,6 @@ fun PrimaryButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
 fun SoftField(value: String, onValueChange: (String) -> Unit, hint: String, keyboard: KeyboardType = KeyboardType.Text) {
     OutlinedTextField(value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(),
         textStyle = TextStyle(color = Ink, fontSize = 16.sp),
-        cursorBrush = SolidColor(NeduRed),
         placeholder = { Text(hint, color = Muted) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard), shape = RoundedCornerShape(18.dp), colors = fieldColors())
 }
