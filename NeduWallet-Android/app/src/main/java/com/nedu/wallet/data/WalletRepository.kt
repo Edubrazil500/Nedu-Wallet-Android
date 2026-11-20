@@ -45,7 +45,7 @@ class WalletRepository(
         require(email.isNotBlank()) { "Enter your email address." }
         require(password.isNotBlank()) { "Enter a password." }
 
-        client.auth.signUpWith(Email) {
+        val signupUser = client.auth.signUpWith(Email) {
             this.email = email.trim()
             this.password = password
             data = buildJsonObject {
@@ -54,7 +54,11 @@ class WalletRepository(
             }
         }
 
-        return client.auth.currentSessionOrNull() != null
+        // With email confirmation enabled Supabase returns a User but no
+        // session. Without confirmation it returns null and creates a session.
+        // Check both signals so an older persisted session is not mistaken
+        // for a newly authenticated signup.
+        return signupUser == null && client.auth.currentSessionOrNull() != null
     }
 
     suspend fun signOut() {
