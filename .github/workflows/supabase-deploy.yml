@@ -1,59 +1,27 @@
 name: Deploy Supabase Backend
 
+# Production deployment is intentionally blocked while the proposed schema
+# is incompatible with the existing iOS Supabase project. Re-enable only after
+# an existing-project migration and staging verification are approved.
 on:
   workflow_dispatch:
     inputs:
-      confirm_deployment:
-        description: "Type DEPLOY to apply migrations and deploy Edge Functions to the configured Supabase project"
+      acknowledge_block:
+        description: "Type BLOCKED to confirm this workflow is intentionally disabled"
         required: true
         type: string
 
 permissions:
   contents: read
 
-concurrency:
-  group: supabase-deployment
-  cancel-in-progress: false
-
 jobs:
-  deploy:
-    if: ${{ inputs.confirm_deployment == 'DEPLOY' }}
+  deployment-blocked:
+    if: ${{ inputs.acknowledge_block == 'BLOCKED' }}
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.58.5
-
-      - name: Validate deployment credentials
-        shell: bash
+      - name: Explain deployment hold
         run: |
-          set -euo pipefail
-          : "${SUPABASE_ACCESS_TOKEN:?Missing GitHub secret SUPABASE_ACCESS_TOKEN}"
-          : "${SUPABASE_PROJECT_REF:?Missing GitHub secret SUPABASE_PROJECT_REF}"
-          : "${SUPABASE_DB_PASSWORD:?Missing GitHub secret SUPABASE_DB_PASSWORD}"
-
-      - name: Link Supabase project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-
-      - name: Apply reviewed database migrations
-        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
-
-      - name: Deploy health Edge Function
-        run: supabase functions deploy health --project-ref "$SUPABASE_PROJECT_REF"
-
-      - name: Deploy account-me Edge Function
-        run: supabase functions deploy account-me --project-ref "$SUPABASE_PROJECT_REF"
-
-      - name: Verify public health endpoint
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error \
-            --retry 5 --retry-delay 3 --retry-connrefused \
-            "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/health"
+          echo "::error::Supabase deployment is blocked pending existing-project schema compatibility review."
+          echo "Do not deploy the current foundation migration or account-me function to the live iOS project."
+          echo "See supabase/EXISTING_PROJECT_COMPATIBILITY.md for the required remediation and release gates."
+          exit 1
