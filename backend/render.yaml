@@ -24,8 +24,8 @@ services:
           property: connectionString
       - key: JWT_ACCESS_SECRET
         generateValue: true
-      - key: JWT_ACCESS_TTL
-        value: 15m
+      - key: JWT_ACCESS_TTL_SECONDS
+        value: "900"
       - key: BCRYPT_ROUNDS
         value: "12"
       - key: FLW_LIVE_ENABLED
