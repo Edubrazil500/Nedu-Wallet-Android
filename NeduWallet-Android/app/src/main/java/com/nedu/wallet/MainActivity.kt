@@ -49,7 +49,6 @@ fun NeduApp() {
     var screen by remember { mutableStateOf("welcome") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passcode by remember { mutableStateOf("") }
     var hideBalance by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -100,7 +99,6 @@ fun NeduApp() {
                         authError = "Account creation is being held until the existing iOS signup and profile-provisioning flow is verified. Please use your existing Nedu Wallet account."
                     }
                 )
-                "passcode" -> PasscodeScreen(passcode, { passcode = it }, onUnlock = { screen = "home" })
                 "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it })
                 "card" -> CardScreen(onNavigate = { screen = it })
                 else -> ProfileScreen(
@@ -138,7 +136,7 @@ fun SplashScreen(onContinue: () -> Unit) {
             }
             Spacer(Modifier.height(18.dp))
             Text("Nedu Wallet", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-            Text("Secure  ·  Global  ·  Non-Custodial", color = Color.White.copy(.72f), fontSize = 15.sp)
+            Text("Multi-currency  ·  One account", color = Color.White.copy(.72f), fontSize = 15.sp)
         }
     }
 }
@@ -151,7 +149,7 @@ fun WelcomeScreen(onCreate: () -> Unit, onLogin: () -> Unit) {
         Spacer(Modifier.height(48.dp))
         Text("Welcome to Nedu Wallet", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(22.dp))
-        Text("Passcode + 2FA, iCloud phrase backup, a card linked to all your wallets, and send, receive and swap across fiat and crypto.",
+        Text("Access your Nedu Wallet account and view your multi-currency balances. More features will be enabled as their secure integrations are verified.",
             color = Muted, fontSize = 17.sp, lineHeight = 24.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(34.dp))
         PrimaryButton("Create Account", onCreate)
@@ -199,25 +197,6 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
         }
         TextButton(onClick = onCreate) { Text("New here? Create Account", color = DeepRed, fontWeight = FontWeight.Bold) }
         Text("By continuing you agree to Nedu Wallet terms.", color = Muted, fontSize = 13.sp)
-    }
-}
-
-@Composable
-fun PasscodeScreen(passcode: String, onPasscode: (String) -> Unit, onUnlock: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 34.dp), horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center) {
-        Text("Nedu", color = NeduRed, fontSize = 48.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(24.dp))
-        Text("Enter Passcode", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(28.dp))
-        OutlinedTextField(value = passcode, onValueChange = { if (it.length <= 4 && it.all(Char::isDigit)) onPasscode(it) },
-            modifier = Modifier.fillMaxWidth(), placeholder = { Text("••••") }, singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            visualTransformation = PasswordVisualTransformation(), shape = RoundedCornerShape(18.dp), colors = fieldColors())
-        Spacer(Modifier.height(22.dp))
-        PrimaryButton("Unlock", onUnlock)
-        Spacer(Modifier.height(18.dp))
-        Text("First time? Enter any 4 digits to set your passcode.", color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center)
     }
 }
 
