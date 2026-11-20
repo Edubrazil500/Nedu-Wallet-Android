@@ -523,7 +523,9 @@ fun EditProfileScreen(
         Spacer(Modifier.height(16.dp))
         Text("Email address", fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
-        SoftField(value = profile?.email.orEmpty(), onValueChange = {}, hint = "Email address")
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Soft)) {
+            Text(profile?.email.orEmpty(), Modifier.padding(16.dp), color = Ink, fontSize = 16.sp)
+        }
         Spacer(Modifier.height(5.dp))
         Text("Email changes must be confirmed through Supabase account security.", color = Muted, fontSize = 12.sp)
         Spacer(Modifier.height(16.dp))
