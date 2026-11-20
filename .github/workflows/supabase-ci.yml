@@ -33,6 +33,8 @@ jobs:
         run: supabase start
       - name: Apply database migrations
         run: supabase db reset --local
+      - name: Test database behavior
+        run: supabase test db --local
       - name: Stop local Supabase stack
         if: always()
         run: supabase stop --no-backup
