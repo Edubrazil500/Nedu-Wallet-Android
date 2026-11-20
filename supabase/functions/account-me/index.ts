@@ -33,6 +33,8 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Server configuration error" }, 500);
   }
 
+  // Use the caller's JWT, not a service-role client. RLS remains the
+  // authorization boundary for profile and wallet reads.
   const supabase = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
@@ -42,66 +44,71 @@ Deno.serve(async (req: Request) => {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser();
+
   if (authError || !user) {
     return json({ error: "Invalid or expired session" }, 401);
   }
 
+  // This query matches the existing iOS project's profiles table. Do not
+  // add columns such as first_name or is_active without a reviewed migration.
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id,email,phone,first_name,last_name,is_active")
+    .select(
+      "id,name,email,phone,country,kyc_status,kyc_level,full_name,avatar_url,virtual_account_number,virtual_bank_name",
+    )
     .eq("id", user.id)
     .maybeSingle();
+
   if (profileError) {
+    console.error("account-me: profile query failed", profileError.message);
     return json({ error: "Unable to load account" }, 500);
   }
-  if (!profile || !profile.is_active) {
-    return json({ error: "Account unavailable" }, 403);
+  if (!profile) {
+    return json({ error: "Account profile not found" }, 404);
   }
 
-  const { data: wallet, error: walletError } = await supabase
+  // The existing application stores one row per currency, not one wallet
+  // per user. Preserve database numeric values as strings to avoid JS
+  // floating-point rounding of money.
+  const { data: wallets, error: walletsError } = await supabase
     .from("wallets")
-    .select(
-      "id,currency,status,ledger_accounts(id,ledger_entries(direction,amount))",
-    )
+    .select("id,code,name,balance,is_crypto,address,updated_at")
     .eq("user_id", user.id)
-    .maybeSingle();
-  if (walletError) {
-    return json({ error: "Unable to load wallet" }, 500);
-  }
-  if (!wallet) {
-    return json({ error: "Wallet not found" }, 404);
-  }
+    .order("code", { ascending: true });
 
-  const accounts = (wallet.ledger_accounts ?? []) as Array<{
-    id: string;
-    ledger_entries: Array<
-      { direction: "DEBIT" | "CREDIT"; amount: number | string }
-    >;
-  }>;
-  const balance = accounts.reduce(
-    (sum, account) =>
-      sum + account.ledger_entries.reduce(
-        (accountSum, entry) =>
-          accountSum +
-          (entry.direction === "CREDIT" ? 1 : -1) * Number(entry.amount),
-        0,
-      ),
-    0,
-  );
+  if (walletsError) {
+    console.error("account-me: wallets query failed", walletsError.message);
+    return json({ error: "Unable to load wallets" }, 500);
+  }
 
   return json({
     user: {
       id: profile.id,
+      name: profile.name,
+      fullName: profile.full_name,
       email: profile.email,
       phone: profile.phone,
-      firstName: profile.first_name,
-      lastName: profile.last_name,
+      country: profile.country,
+      kycStatus: profile.kyc_status,
+      kycLevel: profile.kyc_level,
+      avatarUrl: profile.avatar_url,
+      virtualAccount: profile.virtual_account_number
+        ? {
+          accountNumber: profile.virtual_account_number,
+          bankName: profile.virtual_bank_name,
+        }
+        : null,
     },
-    wallet: {
+    wallets: (wallets ?? []).map((wallet) => ({
       id: wallet.id,
-      currency: wallet.currency,
-      status: wallet.status,
-      availableBalance: balance.toFixed(2),
-    },
+      code: wallet.code,
+      name: wallet.name,
+      // Supabase/Postgres numeric values are intentionally not converted
+      // to JavaScript Number.
+      balance: wallet.balance === null ? null : String(wallet.balance),
+      isCrypto: wallet.is_crypto,
+      address: wallet.address,
+      updatedAt: wallet.updated_at,
+    })),
   });
 });
