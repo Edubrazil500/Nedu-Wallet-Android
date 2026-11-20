@@ -50,9 +50,6 @@ fun NeduApp() {
     var password by remember { mutableStateOf("") }
     var passcode by remember { mutableStateOf("") }
     var hideBalance by remember { mutableStateOf(false) }
-    var freezeCard by remember { mutableStateOf(false) }
-    var onlinePayments by remember { mutableStateOf(true) }
-    var applePay by remember { mutableStateOf(true) }
     var authError by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var wallets by remember { mutableStateOf<List<WalletBalance>>(emptyList()) }
@@ -102,9 +99,26 @@ fun NeduApp() {
                 )
                 "passcode" -> PasscodeScreen(passcode, { passcode = it }, onUnlock = { screen = "home" })
                 "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it })
-                "card" -> CardScreen(applePay, { applePay = it }, freezeCard, { freezeCard = it },
-                    onlinePayments, { onlinePayments = it }, onNavigate = { screen = it })
-                else -> ProfileScreen(onNavigate = { screen = it })
+                "card" -> CardScreen(onNavigate = { screen = it })
+                else -> ProfileScreen(
+                    onNavigate = { screen = it },
+                    onSignOut = {
+                        val repository = walletRepository
+                        if (repository != null) {
+                            scope.launch {
+                                try {
+                                    repository.signOut()
+                                    wallets = emptyList()
+                                    screen = "welcome"
+                                } catch (error: Exception) {
+                                    authError = error.message ?: "Unable to sign out."
+                                }
+                            }
+                        } else {
+                            screen = "welcome"
+                        }
+                    }
+                )
             }
         }
     }
@@ -275,80 +289,37 @@ fun WalletRow(flag: String, name: String, code: String, amount: String, hidden: 
 }
 
 @Composable
-fun CardScreen(applePay: Boolean, setApplePay: (Boolean) -> Unit, freeze: Boolean, setFreeze: (Boolean) -> Unit,
-               online: Boolean, setOnline: (Boolean) -> Unit, onNavigate: (String) -> Unit) {
+fun CardScreen(onNavigate: (String) -> Unit) {
     Scaffold(bottomBar = { BottomBar("card", onNavigate) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                Text("Nedu Card", fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(24.dp))
-                Box(Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(NeduRed, DeepRed)), RoundedCornerShape(26.dp)).padding(24.dp)) {
-                    Column {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Nedu", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                            Text("VISA", color = Color.White, fontSize = 20.sp)
-                        }
-                        Spacer(Modifier.height(20.dp))
-                        Text("5321 •••• •••• 2026", color = Color.White, fontSize = 21.sp)
-                        Spacer(Modifier.height(22.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(Modifier.weight(1f)) {
-                                Text("CARD HOLDER", color = Color.White.copy(.7f), fontSize = 11.sp)
-                                Text("CHINEDU BETHEL...", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                            Column {
-                                Text("EXPIRES", color = Color.White.copy(.7f), fontSize = 11.sp)
-                                Text("12/28", color = Color.White)
-                            }
-                            Spacer(Modifier.width(16.dp))
-                            Column {
-                                Text("CVV", color = Color.White.copy(.7f), fontSize = 11.sp)
-                                Text("•••  ◉", color = Color.White)
-                            }
-                        }
-                        Spacer(Modifier.height(18.dp))
-                        Text("LINKED TO", color = Color.White.copy(.7f), fontSize = 11.sp)
-                        Text("ALL WALLETS", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Spacer(Modifier.height(18.dp))
-                Card(colors = CardDefaults.cardColors(containerColor = Soft), shape = RoundedCornerShape(22.dp)) {
-                    Column(Modifier.padding(20.dp)) {
-                        Text("Apple Pay", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(10.dp))
-                        Text("Add your Nedu Card to Apple Pay to pay in shops, in apps and online with Face ID.", color = Muted)
-                        Spacer(Modifier.height(16.dp))
-                        Text("Apple Pay is an iOS feature and is not available as an Android wallet integration.", color = Muted, fontSize = 12.sp)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Enable card wallet feature")
-                            Switch(checked = applePay, onCheckedChange = setApplePay)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(18.dp))
-                Card(colors = CardDefaults.cardColors(containerColor = Soft), shape = RoundedCornerShape(22.dp)) {
-                    Column(Modifier.padding(20.dp)) {
-                        Text("Card Controls", fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                        SettingSwitch("Freeze Card", freeze, setFreeze)
-                        SettingSwitch("Online Payments", online, setOnline)
-                    }
-                }
-                Spacer(Modifier.height(20.dp))
-            }
+        Column(
+            Modifier.fillMaxSize().padding(padding).padding(22.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(Icons.Default.CreditCard, null, tint = NeduRed, modifier = Modifier.size(56.dp))
+            Spacer(Modifier.height(18.dp))
+            Text("Nedu Card", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Card details and controls are not connected yet. We are verifying which existing card records the iOS app uses before displaying or changing card information here.",
+                color = Muted,
+                textAlign = TextAlign.Center,
+                fontSize = 15.sp,
+                lineHeight = 22.sp
+            )
         }
     }
 }
 
 @Composable
-fun ProfileScreen(onNavigate: (String) -> Unit) {
+fun ProfileScreen(onNavigate: (String) -> Unit, onSignOut: () -> Unit) {
     Scaffold(bottomBar = { BottomBar("profile", onNavigate) }) {
         Column(Modifier.fillMaxSize().padding(it).padding(22.dp)) {
             Spacer(Modifier.height(24.dp))
             Text("Profile", fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(24.dp))
-            Text("CHINEDU BETHEL ONWUBIKO", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("Nedu Wallet account", color = Muted)
+            Text("Your Nedu Wallet account", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Account profile details will load after profile mapping is verified.", color = Muted)
             Spacer(Modifier.height(24.dp))
             listOf("Personal Information", "Security & 2FA", "Backup & Recovery Phrase", "Notifications", "Help & Support", "Terms & Privacy").forEach {
                 Card(Modifier.fillMaxWidth().padding(vertical = 5.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
@@ -358,6 +329,8 @@ fun ProfileScreen(onNavigate: (String) -> Unit) {
                     }
                 }
             }
+            Spacer(Modifier.height(20.dp))
+            PrimaryButton("Sign Out", onSignOut)
         }
     }
 }
