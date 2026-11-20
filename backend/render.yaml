@@ -3,6 +3,7 @@ databases:
     plan: basic-1gb
     databaseName: nedu_wallet
     user: nedu_wallet_app
+
 services:
   - type: web
     name: nedu-wallet-api
@@ -28,7 +29,11 @@ services:
         value: "900"
       - key: BCRYPT_ROUNDS
         value: "12"
+      - key: FLW_BASE_URL
+        value: https://api.flutterwave.com/v3
       - key: FLW_LIVE_ENABLED
+        value: "false"
+      - key: TRANSFERS_ENABLED
         value: "false"
       - key: FLW_SECRET_KEY
         sync: false
