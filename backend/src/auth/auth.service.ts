@@ -4,9 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.module';
 import { LoginDto, RegisterDto } from './auth.dto';
+
 @Injectable()
 export class AuthService {
   constructor(private prisma: PrismaService, private jwt: JwtService, private config: ConfigService) {}
+
   async register(dto: RegisterDto) {
     const email = dto.email.trim().toLowerCase();
     if (await this.prisma.user.findUnique({ where: { email } })) throw new ConflictException('An account with this email already exists.');
@@ -19,12 +21,20 @@ export class AuthService {
     });
     return this.issueToken(user.id, user.email);
   }
+
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email.trim().toLowerCase() } });
     if (!user || !user.isActive || !(await bcrypt.compare(dto.password, user.passwordHash))) throw new UnauthorizedException('Invalid email or password.');
     return this.issueToken(user.id, user.email);
   }
+
   private async issueToken(userId: string, email: string) {
-    return { accessToken: await this.jwt.signAsync({ sub: userId, email }), tokenType: 'Bearer', expiresIn: this.config.get('JWT_ACCESS_TTL', '15m'), user: { id: userId, email } };
+    const expiresIn = Number(this.config.get<string>('JWT_ACCESS_TTL_SECONDS', '900'));
+    return {
+      accessToken: await this.jwt.signAsync({ sub: userId, email }),
+      tokenType: 'Bearer',
+      expiresIn,
+      user: { id: userId, email },
+    };
   }
 }
