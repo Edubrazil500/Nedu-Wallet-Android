@@ -10,6 +10,11 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * Read-only Android access to the current user's existing wallet rows.
@@ -59,6 +64,47 @@ class WalletRepository(
         // Check both signals so an older persisted session is not mistaken
         // for a newly authenticated signup.
         return signupUser == null && client.auth.currentSessionOrNull() != null
+    }
+
+    /**
+     * Updates only the authenticated user's display name and phone through
+     * the profile-update Edge Function. The service-role key never leaves Supabase.
+     */
+    suspend fun updateMyProfile(name: String, phone: String?) = withContext(Dispatchers.IO) {
+        val cleanName = name.trim()
+        require(cleanName.length in 2..120) { "Enter a name between 2 and 120 characters." }
+        val session = client.auth.currentSessionOrNull()
+            ?: throw IllegalStateException("Please sign in again.")
+
+        val endpoint = BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/profile-update"
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            doOutput = true
+            setRequestProperty("Authorization", "Bearer ${session.accessToken}")
+            setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            setRequestProperty("Content-Type", "application/json")
+        }
+        try {
+            val payload = JSONObject().apply {
+                put("name", cleanName)
+                put("phone", phone?.trim().orEmpty())
+            }.toString()
+            connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val body = runCatching { JSONObject(response) }.getOrNull()
+            if (status !in 200..299 || body?.optBoolean("success") != true) {
+                throw IllegalStateException(
+                    body?.optString("error")?.takeIf { it.isNotBlank() }
+                        ?: "We could not save your profile. Please try again."
+                )
+            }
+        } finally {
+            connection.disconnect()
+        }
     }
 
     suspend fun signOut() {
