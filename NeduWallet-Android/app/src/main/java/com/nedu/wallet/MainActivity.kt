@@ -29,6 +29,7 @@ import com.nedu.wallet.data.AccountProfile
 import com.nedu.wallet.data.SupabaseClientProvider
 import com.nedu.wallet.data.WalletBalance
 import com.nedu.wallet.data.WalletRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val NeduRed = Color(0xFFC91D27)
@@ -46,7 +47,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun NeduApp() {
-    var screen by remember { mutableStateOf("welcome") }
+    var screen by remember { mutableStateOf("splash") }
+    LaunchedEffect(screen) {
+        if (screen == "splash") {
+            delay(1_500)
+            screen = "welcome"
+        }
+    }
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -65,7 +72,7 @@ fun NeduApp() {
     MaterialTheme(colorScheme = lightColorScheme(primary = NeduRed, onPrimary = Color.White, background = Color.White)) {
         Surface(Modifier.fillMaxSize(), color = Color.White) {
             when (screen) {
-                "splash" -> SplashScreen { screen = "welcome" }
+                "splash" -> SplashScreen { }
                 "welcome" -> WelcomeScreen(
                     onCreate = { authError = null; authNotice = null; screen = "signup" },
                     onLogin = { authError = null; authNotice = null; screen = "login" }
@@ -278,7 +285,7 @@ fun SignupScreen(
         Text("Create Account", Modifier.fillMaxWidth(), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink)
         Spacer(Modifier.height(12.dp))
         Text(
-            "Create your Nedu Wallet account. Your profile and seven currency wallets will be set up automatically.",
+            "Create your Nedu Wallet account. Your profile and currency wallets will be set up automatically.",
             color = Muted,
             fontSize = 15.sp,
             lineHeight = 21.sp
@@ -332,7 +339,7 @@ fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -
                             Text("Your Wallets", color = Color.White.copy(.8f), fontSize = 15.sp)
                             IconButton(onClick = toggleHidden) { Icon(if (hidden) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = Color.White) }
                         }
-                        Text("${wallets.size} currencies", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                        Text("Multi-currency account", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                         Text("Balances are loaded from your account", color = Color.White.copy(.7f), fontSize = 13.sp)
                     }
                 }
