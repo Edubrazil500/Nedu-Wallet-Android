@@ -117,7 +117,8 @@ declare
   v_wallet_id uuid;
 begin
   v_email := nullif(lower(trim(coalesce(new.email, ''))), '');
-  -- Only Supabase Auth's verified phone field is trusted here; ignore arbitrary metadata.\n  v_phone := nullif(trim(coalesce(new.phone, '')), '');
+  -- Only Supabase Auth's verified phone field is trusted here; ignore arbitrary metadata.
+  v_phone := nullif(trim(coalesce(new.phone, '')), '');
   v_first := nullif(trim(coalesce(new.raw_user_meta_data ->> 'first_name', '')), '');
   v_last := nullif(trim(coalesce(new.raw_user_meta_data ->> 'last_name', '')), '');
 
@@ -157,7 +158,11 @@ declare
   v_credits numeric(20,2);
   v_count bigint;
 begin
-  v_journal_id := coalesce(new.journal_id, old.journal_id);
+  if tg_op = 'DELETE' then
+    v_journal_id := old.journal_id;
+  else
+    v_journal_id := new.journal_id;
+  end if;
   select
     coalesce(sum(case when direction = 'DEBIT' then amount else 0 end), 0),
     coalesce(sum(case when direction = 'CREDIT' then amount else 0 end), 0),
