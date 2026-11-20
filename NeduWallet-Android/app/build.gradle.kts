@@ -1,4 +1,4 @@
-plugins {
+import java.util.Properties\n\nplugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -9,7 +9,7 @@ import java.util.Properties
 
 val localProperties = Properties().apply {
     val localFile = rootProject.file("local.properties")
-    if (localFile.exists()) localFile.inputStream().use(::load)
+    if (localFile.exists()) localFile.inputStream().use { load(it) }
 }
 val supabaseUrl = providers.gradleProperty("supabaseUrl")
     .orElse(localProperties.getProperty("supabase.url", ""))
