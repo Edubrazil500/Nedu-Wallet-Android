@@ -6,6 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -18,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -224,7 +228,7 @@ fun WelcomeScreen(onCreate: () -> Unit, onLogin: () -> Unit) {
 fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPassword: (String) -> Unit,
                 errorMessage: String?, noticeMessage: String?, loading: Boolean, onLogin: () -> Unit, onCreate: () -> Unit) {
     var showPassword by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(top = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 24.dp).padding(top = 40.dp, bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Log In", Modifier.fillMaxWidth(), fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Ink)
         Spacer(Modifier.height(54.dp))
         Text("Welcome Back", fontSize = 25.sp, fontWeight = FontWeight.Bold)
@@ -234,6 +238,8 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
         SoftField(value = email, onValueChange = onEmail, hint = "Email", keyboard = KeyboardType.Email)
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(value = password, onValueChange = onPassword, modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(color = Ink, fontSize = 16.sp),
+            cursorBrush = SolidColor(NeduRed),
             placeholder = { Text("Password", color = Color.LightGray) },
             shape = RoundedCornerShape(18.dp), singleLine = true,
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -492,15 +498,25 @@ fun PrimaryButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
 @Composable
 fun SoftField(value: String, onValueChange: (String) -> Unit, hint: String, keyboard: KeyboardType = KeyboardType.Text) {
     OutlinedTextField(value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(),
-        placeholder = { Text(hint, color = Color.LightGray) }, singleLine = true,
+        textStyle = TextStyle(color = Ink, fontSize = 16.sp),
+        cursorBrush = SolidColor(NeduRed),
+        placeholder = { Text(hint, color = Muted) }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard), shape = RoundedCornerShape(18.dp), colors = fieldColors())
 }
 
 @Composable
 fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    unfocusedContainerColor = Soft, focusedContainerColor = Soft,
-    unfocusedBorderColor = Soft, focusedBorderColor = NeduRed,
-    unfocusedTextColor = Ink, focusedTextColor = Ink
+    unfocusedContainerColor = Color.White,
+    focusedContainerColor = Color.White,
+    unfocusedBorderColor = Color(0xFFE3E3E8),
+    focusedBorderColor = NeduRed,
+    unfocusedTextColor = Ink,
+    focusedTextColor = Ink,
+    cursorColor = NeduRed,
+    unfocusedPlaceholderColor = Muted,
+    focusedPlaceholderColor = Muted,
+    unfocusedLabelColor = Muted,
+    focusedLabelColor = NeduRed
 )
 
 
