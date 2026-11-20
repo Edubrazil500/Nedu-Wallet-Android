@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum WalletStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum LedgerAccountType {
+  USER_WALLET
+  FLUTTERWAVE_CLEARING
+  FEES_REVENUE
+  WITHDRAWAL_PAYABLE
+}
+
+enum EntryDirection {
+  DEBIT
+  CREDIT
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REVERSED
+}
+
+enum PaymentKind {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+  VIRTUAL_ACCOUNT
+}
+model User {
+  id String @id @default(uuid())
+  email String @unique
+  phone String? @unique
+  passwordHash String
+  firstName String?
+  lastName String?
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  wallet Wallet?
+  payments PaymentTransaction[]
+  virtualAccounts VirtualAccount[]
+}
+model Wallet {
+  id String @id @default(uuid())
+  userId String @unique
+  currency String @default("NGN")
+  status WalletStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id])
+  ledgerAccount LedgerAccount?
+}
+model LedgerAccount {
+  id String @id @default(uuid())
+  walletId String? @unique
+  code String @unique
+  type LedgerAccountType
+  currency String @default("NGN")
+  createdAt DateTime @default(now())
+  wallet Wallet? @relation(fields: [walletId], references: [id])
+  entries LedgerEntry[]
+}
+model JournalTransaction {
+  id String @id @default(uuid())
+  reference String @unique
+  description String
+  currency String @default("NGN")
+  createdAt DateTime @default(now())
+  entries LedgerEntry[]
+}
+model LedgerEntry {
+  id String @id @default(uuid())
+  journalId String
+  accountId String
+  direction EntryDirection
+  amount Decimal @db.Decimal(20, 2)
+  createdAt DateTime @default(now())
+  journal JournalTransaction @relation(fields: [journalId], references: [id])
+  account LedgerAccount @relation(fields: [accountId], references: [id])
+  @@index([accountId, createdAt])
+  @@index([journalId])
+}
+model PaymentTransaction {
+  id String @id @default(uuid())
+  userId String
+  txRef String @unique
+  providerRef String? @unique
+  kind PaymentKind
+  status PaymentStatus @default(PENDING)
+  amount Decimal @db.Decimal(20, 2)
+  currency String @default("NGN")
+  provider String @default("FLUTTERWAVE")
+  checkoutUrl String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+model VirtualAccount {
+  id String @id @default(uuid())
+  userId String
+  txRef String @unique
+  providerRef String?
+  accountNumber String
+  bankName String
+  currency String @default("NGN")
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id])
+  @@index([userId])
+}
+model WebhookEvent {
+  id String @id @default(uuid())
+  eventKey String @unique
+  eventType String
+  payload Json
+  processedAt DateTime?
+  createdAt DateTime @default(now())
+}
