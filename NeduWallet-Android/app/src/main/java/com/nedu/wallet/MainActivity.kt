@@ -47,10 +47,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun NeduApp() {
     var screen by remember { mutableStateOf("welcome") }
+    var fullName by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var hideBalance by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
+    var authNotice by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var wallets by remember { mutableStateOf<List<WalletBalance>>(emptyList()) }
     var profile by remember { mutableStateOf<AccountProfile?>(null) }
@@ -64,8 +67,55 @@ fun NeduApp() {
             when (screen) {
                 "splash" -> SplashScreen { screen = "welcome" }
                 "welcome" -> WelcomeScreen(
-                    onCreate = { screen = "login" },
-                    onLogin = { screen = "login" }
+                    onCreate = { authError = null; authNotice = null; screen = "signup" },
+                    onLogin = { authError = null; authNotice = null; screen = "login" }
+                )
+                "signup" -> SignupScreen(
+                    fullName = fullName,
+                    onFullName = { fullName = it },
+                    phone = phone,
+                    onPhone = { phone = it },
+                    email = email,
+                    onEmail = { email = it },
+                    password = password,
+                    onPassword = { password = it },
+                    errorMessage = authError,
+                    noticeMessage = authNotice,
+                    loading = isLoading,
+                    onBack = { screen = "welcome" },
+                    onSignUp = {
+                        val repository = walletRepository
+                        if (repository == null) {
+                            authError = "This build is not connected to Supabase. Configure the existing project URL and publishable key."
+                        } else {
+                            scope.launch {
+                                isLoading = true
+                                authError = null
+                                authNotice = null
+                                try {
+                                    email = email.trim()
+                                    val hasSession = repository.signUp(fullName, phone, email, password)
+                                    if (hasSession) {
+                                        profile = repository.loadMyProfile()
+                                            ?: throw IllegalStateException("Your account was created, but its profile is not available yet. Please contact Nedu Wallet support.")
+                                        wallets = repository.loadMyWallets()
+                                        if (wallets.size != 7) {
+                                            throw IllegalStateException("Your account was created, but all seven wallets were not returned. Please contact Nedu Wallet support before using the account.")
+                                        }
+                                        screen = "home"
+                                    } else {
+                                        password = ""
+                                        authNotice = "Your account has been created. Please check your email and confirm your address before signing in."
+                                        screen = "login"
+                                    }
+                                } catch (error: Exception) {
+                                    authError = error.message ?: "Unable to create your account. Please check your details and try again."
+                                } finally {
+                                    isLoading = false
+                                }
+                            }
+                        }
+                    }
                 )
                 "login" -> LoginScreen(
                     email = email,
@@ -82,6 +132,7 @@ fun NeduApp() {
                             scope.launch {
                                 isLoading = true
                                 authError = null
+                                authNotice = null
                                 try {
                                     repository.signIn(email, password)
                                     profile = repository.loadMyProfile()
@@ -95,9 +146,7 @@ fun NeduApp() {
                             }
                         }
                     },
-                    onCreate = {
-                        authError = "Account creation is being held until the existing iOS signup and profile-provisioning flow is verified. Please use your existing Nedu Wallet account."
-                    }
+                    onCreate = { authError = null; authNotice = null; screen = "signup" }
                 )
                 "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it })
                 "card" -> CardScreen(onNavigate = { screen = it })
@@ -165,7 +214,7 @@ fun WelcomeScreen(onCreate: () -> Unit, onLogin: () -> Unit) {
 
 @Composable
 fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPassword: (String) -> Unit,
-                errorMessage: String?, loading: Boolean, onLogin: () -> Unit, onCreate: () -> Unit) {
+                errorMessage: String?, noticeMessage: String?, loading: Boolean, onLogin: () -> Unit, onCreate: () -> Unit) {
     var showPassword by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(top = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Log In", Modifier.fillMaxWidth(), fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Ink)
@@ -190,6 +239,10 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
             Text(errorMessage, color = NeduRed, fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp))
         }
+        if (noticeMessage != null) {
+            Text(noticeMessage, color = Color(0xFF247A42), fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp))
+        }
         Spacer(Modifier.height(12.dp))
         PrimaryButton(if (loading) "Signing In..." else "Log In", onLogin)
         TextButton(onClick = { /* Password recovery will be connected with the verified Auth redirect flow. */ }) {
@@ -197,6 +250,69 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
         }
         TextButton(onClick = onCreate) { Text("New here? Create Account", color = DeepRed, fontWeight = FontWeight.Bold) }
         Text("By continuing you agree to Nedu Wallet terms.", color = Muted, fontSize = 13.sp)
+    }
+}
+
+
+@Composable
+fun SignupScreen(
+    fullName: String,
+    onFullName: (String) -> Unit,
+    phone: String,
+    onPhone: (String) -> Unit,
+    email: String,
+    onEmail: (String) -> Unit,
+    password: String,
+    onPassword: (String) -> Unit,
+    errorMessage: String?,
+    loading: Boolean,
+    onBack: () -> Unit,
+    onSignUp: () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(top = 40.dp, bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Create Account", Modifier.fillMaxWidth(), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Create your Nedu Wallet account. Your profile and seven currency wallets will be set up automatically.",
+            color = Muted,
+            fontSize = 15.sp,
+            lineHeight = 21.sp
+        )
+        Spacer(Modifier.height(24.dp))
+        SoftField(value = fullName, onValueChange = onFullName, hint = "Full name")
+        Spacer(Modifier.height(12.dp))
+        SoftField(value = phone, onValueChange = onPhone, hint = "Phone number (optional)", keyboard = KeyboardType.Phone)
+        Spacer(Modifier.height(12.dp))
+        SoftField(value = email, onValueChange = onEmail, hint = "Email address", keyboard = KeyboardType.Email)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = onPassword,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Password", color = Color.LightGray) },
+            shape = RoundedCornerShape(18.dp),
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            colors = fieldColors()
+        )
+        Spacer(Modifier.height(10.dp))
+        Text("Use a strong password that meets your Supabase Auth password requirements.", color = Muted, fontSize = 12.sp)
+        if (errorMessage != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(errorMessage, color = NeduRed, fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
+        }
+        Spacer(Modifier.height(20.dp))
+        PrimaryButton(if (loading) "Creating Account..." else "Create Account", onSignUp)
+        TextButton(onClick = onBack) {
+            Text("Back", color = DeepRed)
+        }
+        TextButton(onClick = onBack) {
+            Text("Already have an account? Return", color = DeepRed)
+        }
     }
 }
 
