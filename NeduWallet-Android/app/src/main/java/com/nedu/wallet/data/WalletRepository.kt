@@ -34,6 +34,29 @@ class WalletRepository(
     fun currentUserId(): String? =
         client.auth.currentSessionOrNull()?.user?.id
 
+    suspend fun loadMyProfile(): AccountProfile? {
+        val userId = currentUserId()
+            ?: throw IllegalStateException("Please sign in again.")
+
+        return client.from("profiles")
+            .select {
+                filter {
+                    eq("id", userId)
+                }
+            }
+            .decodeList<ProfileRow>()
+            .firstOrNull()
+            ?.let { row ->
+                AccountProfile(
+                    id = row.id,
+                    name = row.name,
+                    email = row.email,
+                    phone = row.phone,
+                    country = row.country,
+                )
+            }
+    }
+
     suspend fun loadMyWallets(): List<WalletBalance> {
         val userId = currentUserId()
             ?: throw IllegalStateException("Please sign in again.")
@@ -58,6 +81,23 @@ class WalletRepository(
             }
     }
 }
+
+@Serializable
+private data class ProfileRow(
+    val id: String,
+    val name: String,
+    val email: String,
+    val phone: String? = null,
+    val country: String? = null,
+)
+
+data class AccountProfile(
+    val id: String,
+    val name: String,
+    val email: String,
+    val phone: String?,
+    val country: String?,
+)
 
 @Serializable
 private data class WalletRow(
