@@ -241,6 +241,7 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
             textStyle = TextStyle(color = Ink, fontSize = 16.sp),
             placeholder = { Text("Password", color = Color.LightGray) },
             shape = RoundedCornerShape(18.dp), singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = { IconButton(onClick = { showPassword = !showPassword }) {
                 Icon(if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = Muted)
@@ -257,7 +258,7 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
             Spacer(Modifier.height(12.dp))
         }
         Spacer(Modifier.height(12.dp))
-        PrimaryButton(if (loading) "Signing In..." else "Log In", onLogin)
+        PrimaryButton(if (loading) "Signing In..." else "Log In", onLogin, enabled = !loading)
         TextButton(onClick = { /* Password recovery will be connected with the verified Auth redirect flow. */ }) {
             Text("Forgot Password?", color = DeepRed, fontSize = 16.sp)
         }
@@ -284,7 +285,7 @@ fun SignupScreen(
     onSignUp: () -> Unit,
 ) {
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(top = 40.dp, bottom = 24.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 24.dp).padding(top = 40.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("Create Account", Modifier.fillMaxWidth(), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink)
