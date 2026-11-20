@@ -117,7 +117,7 @@ declare
   v_wallet_id uuid;
 begin
   v_email := nullif(lower(trim(coalesce(new.email, ''))), '');
-  v_phone := nullif(trim(coalesce(new.phone, new.raw_user_meta_data ->> 'phone', '')), '');
+  -- Only Supabase Auth's verified phone field is trusted here; ignore arbitrary metadata.\n  v_phone := nullif(trim(coalesce(new.phone, '')), '');
   v_first := nullif(trim(coalesce(new.raw_user_meta_data ->> 'first_name', '')), '');
   v_last := nullif(trim(coalesce(new.raw_user_meta_data ->> 'last_name', '')), '');
 
