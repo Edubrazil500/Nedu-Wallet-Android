@@ -1,6 +1,12 @@
 name: Android CI
 
 on:
+  push:
+    branches:
+      - feature/functional-account-backend
+    paths:
+      - "NeduWallet-Android/**"
+      - ".github/workflows/android-ci.yml"
   pull_request:
     paths:
       - "NeduWallet-Android/**"
