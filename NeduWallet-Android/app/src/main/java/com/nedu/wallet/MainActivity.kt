@@ -82,6 +82,7 @@ fun NeduApp() {
                     errorMessage = authError,
                     loading = isLoading,
                     onBack = { screen = "welcome" },
+                    onLogin = { authError = null; authNotice = null; screen = "login" },
                     onSignUp = {
                         val repository = walletRepository
                         if (repository == null) {
@@ -267,6 +268,7 @@ fun SignupScreen(
     errorMessage: String?,
     loading: Boolean,
     onBack: () -> Unit,
+    onLogin: () -> Unit,
     onSignUp: () -> Unit,
 ) {
     Column(
@@ -306,12 +308,12 @@ fun SignupScreen(
             Text(errorMessage, color = NeduRed, fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
         }
         Spacer(Modifier.height(20.dp))
-        PrimaryButton(if (loading) "Creating Account..." else "Create Account", onSignUp)
-        TextButton(onClick = onBack) {
+        PrimaryButton(if (loading) "Creating Account..." else "Create Account", onSignUp, enabled = !loading)
+        TextButton(onClick = onBack, enabled = !loading) {
             Text("Back", color = DeepRed)
         }
-        TextButton(onClick = onBack) {
-            Text("Already have an account? Return", color = DeepRed)
+        TextButton(onClick = onLogin, enabled = !loading) {
+            Text("Already have an account? Log in", color = DeepRed)
         }
     }
 }
@@ -473,8 +475,8 @@ fun SettingSwitch(label: String, checked: Boolean, onChecked: (Boolean) -> Unit)
 }
 
 @Composable
-fun PrimaryButton(label: String, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.fillMaxWidth().height(58.dp),
+fun PrimaryButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().height(58.dp),
         shape = RoundedCornerShape(17.dp), colors = ButtonDefaults.buttonColors(containerColor = NeduRed)) {
         Text(label, fontSize = 17.sp, fontWeight = FontWeight.Medium)
     }
