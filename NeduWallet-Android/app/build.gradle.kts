@@ -5,7 +5,7 @@ import java.util.Properties\n\nplugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-import java.util.Properties
+
 
 val localProperties = Properties().apply {
     val localFile = rootProject.file("local.properties")
