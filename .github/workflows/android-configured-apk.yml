@@ -1,6 +1,12 @@
 name: Build Configured Android APK
 
 on:
+  push:
+    branches:
+      - feature/read-only-live-supabase-release
+    paths:
+      - '.github/workflows/android-configured-apk.yml'
+      - 'NeduWallet-Android/**'
   workflow_dispatch:
     inputs:
       confirm_build:
@@ -13,7 +19,7 @@ permissions:
 
 jobs:
   build:
-    if: ${{ inputs.confirm_build == 'BUILD_CONFIGURED_APK' }}
+    if: ${{ github.event_name == 'push' || inputs.confirm_build == 'BUILD_CONFIGURED_APK' }}
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
