@@ -1,0 +1,87 @@
+name: Build Configured Android APK
+
+on:
+  push:
+    branches:
+      - feature/read-only-live-supabase-release
+    paths:
+      - '.github/workflows/android-configured-apk.yml'
+      - 'NeduWallet-Android/**'
+  workflow_dispatch:
+    inputs:
+      confirm_build:
+        description: "Type BUILD_CONFIGURED_APK to build using the configured Supabase project"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: ${{ github.event_name == 'push' || inputs.confirm_build == 'BUILD_CONFIGURED_APK' }}
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate public Supabase app configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_URL:?Missing GitHub Actions secret SUPABASE_URL}"
+          : "${SUPABASE_PUBLISHABLE_KEY:?Missing GitHub Actions secret SUPABASE_PUBLISHABLE_KEY}"
+
+          # Normalize harmless copy/paste whitespace and a trailing slash.
+          SUPABASE_URL="$(printf '%s' "$SUPABASE_URL" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          SUPABASE_URL="${SUPABASE_URL%/}"
+
+          if [[ ! "$SUPABASE_URL" =~ ^https://[a-z0-9-]+\.supabase\.co$ ]]; then
+            echo "::error::SUPABASE_URL must look like https://your-project-ref.supabase.co (without a path)"
+            exit 1
+          fi
+
+          case "$SUPABASE_PUBLISHABLE_KEY" in
+            sb_secret_*)
+              echo "::error::A Supabase secret/service-role key must never be placed in an Android app"
+              exit 1
+              ;;
+            sb_publishable_*|eyJ*)
+              ;;
+            *)
+              echo "::error::Use the project's publishable key or legacy anon public key"
+              exit 1
+              ;;
+          esac
+
+          # Pass the normalized URL to the later Gradle build step.
+          printf 'SUPABASE_URL=%s\n' "$SUPABASE_URL" >> "$GITHUB_ENV"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build configured debug APK
+        working-directory: NeduWallet-Android
+        run: |
+          gradle --no-daemon :app:assembleDebug \
+            -PsupabaseUrl="$SUPABASE_URL" \
+            -PsupabasePublishableKey="$SUPABASE_PUBLISHABLE_KEY"
+
+      - name: Upload configured APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nedu-wallet-android-configured
+          path: NeduWallet-Android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
