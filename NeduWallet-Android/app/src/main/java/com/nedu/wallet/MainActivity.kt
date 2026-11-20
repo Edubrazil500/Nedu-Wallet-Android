@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nedu.wallet.data.AccountProfile
 import com.nedu.wallet.data.SupabaseClientProvider
 import com.nedu.wallet.data.WalletBalance
 import com.nedu.wallet.data.WalletRepository
@@ -53,6 +54,7 @@ fun NeduApp() {
     var authError by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var wallets by remember { mutableStateOf<List<WalletBalance>>(emptyList()) }
+    var profile by remember { mutableStateOf<AccountProfile?>(null) }
     val scope = rememberCoroutineScope()
     val walletRepository = remember {
         if (SupabaseClientProvider.isConfigured) WalletRepository() else null
@@ -83,6 +85,7 @@ fun NeduApp() {
                                 authError = null
                                 try {
                                     repository.signIn(email, password)
+                                    profile = repository.loadMyProfile()
                                     wallets = repository.loadMyWallets()
                                     screen = "home"
                                 } catch (error: Exception) {
@@ -101,6 +104,7 @@ fun NeduApp() {
                 "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it })
                 "card" -> CardScreen(onNavigate = { screen = it })
                 else -> ProfileScreen(
+                    profile = profile,
                     onNavigate = { screen = it },
                     onSignOut = {
                         val repository = walletRepository
@@ -109,6 +113,7 @@ fun NeduApp() {
                                 try {
                                     repository.signOut()
                                     wallets = emptyList()
+                                    profile = null
                                     screen = "welcome"
                                 } catch (error: Exception) {
                                     authError = error.message ?: "Unable to sign out."
@@ -314,14 +319,21 @@ fun CardScreen(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(onNavigate: (String) -> Unit, onSignOut: () -> Unit) {
+fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onSignOut: () -> Unit) {
     Scaffold(bottomBar = { BottomBar("profile", onNavigate) }) {
         Column(Modifier.fillMaxSize().padding(it).padding(22.dp)) {
             Spacer(Modifier.height(24.dp))
             Text("Profile", fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(24.dp))
-            Text("Your Nedu Wallet account", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("Account profile details will load after profile mapping is verified.", color = Muted)
+            Text(profile?.name?.takeIf { name -> name.isNotBlank() } ?: "Your Nedu Wallet account",
+                fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(profile?.email ?: "Profile details are not available for this account.", color = Muted)
+            profile?.phone?.let { phone ->
+                Text(phone, color = Muted, modifier = Modifier.padding(top = 4.dp))
+            }
+            profile?.country?.let { country ->
+                Text(country, color = Muted, modifier = Modifier.padding(top = 4.dp))
+            }
             Spacer(Modifier.height(24.dp))
             listOf("Personal Information", "Security & 2FA", "Backup & Recovery Phrase", "Notifications", "Help & Support", "Terms & Privacy").forEach {
                 Card(Modifier.fillMaxWidth().padding(vertical = 5.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
