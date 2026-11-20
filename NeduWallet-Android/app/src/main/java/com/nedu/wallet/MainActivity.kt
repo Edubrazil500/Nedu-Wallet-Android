@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -24,6 +25,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nedu.wallet.data.SupabaseClientProvider
+import com.nedu.wallet.data.WalletBalance
+import com.nedu.wallet.data.WalletRepository
+import kotlinx.coroutines.launch
 
 private val NeduRed = Color(0xFFC91D27)
 private val DeepRed = Color(0xFF98151F)
@@ -48,6 +53,13 @@ fun NeduApp() {
     var freezeCard by remember { mutableStateOf(false) }
     var onlinePayments by remember { mutableStateOf(true) }
     var applePay by remember { mutableStateOf(true) }
+    var authError by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var wallets by remember { mutableStateOf<List<WalletBalance>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+    val walletRepository = remember {
+        if (SupabaseClientProvider.isConfigured) WalletRepository() else null
+    }
 
     MaterialTheme(colorScheme = lightColorScheme(primary = NeduRed, onPrimary = Color.White, background = Color.White)) {
         Surface(Modifier.fillMaxSize(), color = Color.White) {
@@ -57,10 +69,39 @@ fun NeduApp() {
                     onCreate = { screen = "login" },
                     onLogin = { screen = "login" }
                 )
-                "login" -> LoginScreen(email, { email = it }, password, { password = it },
-                    onLogin = { screen = "passcode" }, onCreate = { screen = "passcode" })
+                "login" -> LoginScreen(
+                    email = email,
+                    onEmail = { email = it },
+                    password = password,
+                    onPassword = { password = it },
+                    errorMessage = authError,
+                    loading = isLoading,
+                    onLogin = {
+                        val repository = walletRepository
+                        if (repository == null) {
+                            authError = "This build is not connected to Supabase yet. Configure the existing project's URL and publishable key in local.properties."
+                        } else {
+                            scope.launch {
+                                isLoading = true
+                                authError = null
+                                try {
+                                    repository.signIn(email, password)
+                                    wallets = repository.loadMyWallets()
+                                    screen = "home"
+                                } catch (error: Exception) {
+                                    authError = error.message ?: "Unable to sign in. Check your connection and credentials."
+                                } finally {
+                                    isLoading = false
+                                }
+                            }
+                        }
+                    },
+                    onCreate = {
+                        authError = "Account creation is being held until the existing iOS signup and profile-provisioning flow is verified. Please use your existing Nedu Wallet account."
+                    }
+                )
                 "passcode" -> PasscodeScreen(passcode, { passcode = it }, onUnlock = { screen = "home" })
-                "home" -> WalletHome(hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it })
+                "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it })
                 "card" -> CardScreen(applePay, { applePay = it }, freezeCard, { freezeCard = it },
                     onlinePayments, { onlinePayments = it }, onNavigate = { screen = it })
                 else -> ProfileScreen(onNavigate = { screen = it })
@@ -107,7 +148,7 @@ fun WelcomeScreen(onCreate: () -> Unit, onLogin: () -> Unit) {
 
 @Composable
 fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPassword: (String) -> Unit,
-                onLogin: () -> Unit, onCreate: () -> Unit) {
+                errorMessage: String?, loading: Boolean, onLogin: () -> Unit, onCreate: () -> Unit) {
     var showPassword by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(top = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Log In", Modifier.fillMaxWidth(), fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Ink)
@@ -128,9 +169,15 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
             colors = fieldColors())
         Spacer(Modifier.height(12.dp))
         Text("Password must have capital, small, number and character.", color = Muted, fontSize = 13.sp)
-        Spacer(Modifier.height(24.dp))
-        PrimaryButton("Log In", onLogin)
-        TextButton(onClick = onLogin) { Text("Forgot Password?", color = DeepRed, fontSize = 16.sp) }
+        if (errorMessage != null) {
+            Text(errorMessage, color = NeduRed, fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp))
+        }
+        Spacer(Modifier.height(12.dp))
+        PrimaryButton(if (loading) "Signing In..." else "Log In", onLogin)
+        TextButton(onClick = { /* Password recovery will be connected with the verified Auth redirect flow. */ }) {
+            Text("Forgot Password?", color = DeepRed, fontSize = 16.sp)
+        }
         TextButton(onClick = onCreate) { Text("New here? Create Account", color = DeepRed, fontWeight = FontWeight.Bold) }
         Text("By continuing you agree to Nedu Wallet terms.", color = Muted, fontSize = 13.sp)
     }
@@ -156,7 +203,7 @@ fun PasscodeScreen(passcode: String, onPasscode: (String) -> Unit, onUnlock: () 
 }
 
 @Composable
-fun WalletHome(hidden: Boolean, toggleHidden: () -> Unit, onNavigate: (String) -> Unit) {
+fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -> Unit, onNavigate: (String) -> Unit) {
     Scaffold(bottomBar = { BottomBar("home", onNavigate) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
             item {
@@ -166,15 +213,11 @@ fun WalletHome(hidden: Boolean, toggleHidden: () -> Unit, onNavigate: (String) -
                 Box(Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(NeduRed, DeepRed)), RoundedCornerShape(28.dp)).padding(24.dp)) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Total Balance", color = Color.White.copy(.8f), fontSize = 15.sp)
+                            Text("Your Wallets", color = Color.White.copy(.8f), fontSize = 15.sp)
                             IconButton(onClick = toggleHidden) { Icon(if (hidden) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = Color.White) }
                         }
-                        Text(if (hidden) "••••••" else "$0.00", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Bold)
-                        Text("Tap eye to ${if (hidden) "show" else "hide"} balance", color = Color.White.copy(.7f), fontSize = 13.sp)
-                        Spacer(Modifier.height(14.dp))
-                        Text("NGN: 9976663413 - Flutterwave MFB (Formerly OK MFB)",
-                            color = Color.White, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().background(Color.White.copy(.14f), RoundedCornerShape(12.dp)).padding(8.dp),
-                            textAlign = TextAlign.Center)
+                        Text("${wallets.size} currencies", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                        Text("Balances are loaded from your account", color = Color.White.copy(.7f), fontSize = 13.sp)
                     }
                 }
                 Spacer(Modifier.height(18.dp))
@@ -191,11 +234,23 @@ fun WalletHome(hidden: Boolean, toggleHidden: () -> Unit, onNavigate: (String) -
                 }
                 Spacer(Modifier.height(12.dp))
             }
-            item { WalletRow("🇳🇬", "Naira", "NGN", "₦0.00", hidden) }
-            item { WalletRow("🇺🇸", "US Dollar", "USD", "$0.00", hidden) }
-            item { WalletRow("🇪🇺", "Euro", "EUR", "€0.00", hidden) }
-            item { WalletRow("🇬🇧", "British Pound", "GBP", "£0.00", hidden) }
-            item { WalletRow("₮", "Tether", "USDT", "$0.00", hidden) }
+            if (wallets.isEmpty()) {
+                item {
+                    Text("No wallets were returned for this account.", color = Muted, modifier = Modifier.padding(vertical = 20.dp))
+                }
+            } else {
+                wallets.forEach { wallet ->
+                    item {
+                        WalletRow(
+                            flag = currencyMark(wallet.code),
+                            name = wallet.name,
+                            code = wallet.code,
+                            amount = "${wallet.balance} ${wallet.code}",
+                            hidden = hidden
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -212,7 +267,7 @@ fun WalletRow(flag: String, name: String, code: String, amount: String, hidden: 
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(if (hidden) "••••" else amount, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text("≈ $0.00 USD", color = Muted, fontSize = 13.sp)
+                Text("Available balance", color = Muted, fontSize = 12.sp)
             }
             Icon(Icons.Default.ChevronRight, null, tint = Muted)
         }
@@ -356,3 +411,15 @@ fun fieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedBorderColor = Soft, focusedBorderColor = NeduRed,
     unfocusedTextColor = Ink, focusedTextColor = Ink
 )
+
+
+private fun currencyMark(code: String): String = when (code.uppercase()) {
+    "NGN" -> "₦"
+    "USD" -> "$"
+    "EUR" -> "€"
+    "GBP" -> "£"
+    "CAD" -> "C$"
+    "USDT" -> "₮"
+    "USDC" -> "$"
+    else -> "¤"
+}
