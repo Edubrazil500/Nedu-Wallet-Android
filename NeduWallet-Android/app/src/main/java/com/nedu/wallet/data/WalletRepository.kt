@@ -150,9 +150,9 @@ class WalletRepository(
                             ?: "Identity verification could not be completed. Please try again."
                     )
                 }
-                if (!body?.optBoolean("verified", false)!!) {
+                if (body == null || !body.optBoolean("verified", false)) {
                     throw IllegalStateException(
-                        body.optString("error").takeIf { it.isNotBlank() }
+                        body?.optString("error")?.takeIf { it.isNotBlank() }
                             ?: "Your identity details could not be verified."
                     )
                 }
