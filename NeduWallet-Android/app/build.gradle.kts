@@ -13,11 +13,17 @@ val localProperties = Properties().apply {
     val localFile = rootProject.file("local.properties")
     if (localFile.exists()) localFile.inputStream().use { load(it) }
 }
+// Public client configuration for the existing Nedu Wallet Supabase project.
+// These values are intentionally safe to bundle in a mobile app: use only the
+// publishable key here, never a Supabase service-role or secret key.
+// Gradle command-line properties and local.properties can still override them.
 val supabaseUrl = providers.gradleProperty("supabaseUrl")
     .orElse(localProperties.getProperty("supabase.url", ""))
+    .orElse("https://yybmhqviescjpplqfaok.supabase.co")
     .get()
 val supabasePublishableKey = providers.gradleProperty("supabasePublishableKey")
     .orElse(localProperties.getProperty("supabase.publishableKey", ""))
+    .orElse("sb_publishable_62Mt0Zs-p-z1dwEcgiNiCA_QDzOok13")
     .get()
 
 android {
