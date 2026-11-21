@@ -4,7 +4,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
   });
 }
 function safeEqual(a: string, b: string): boolean {
@@ -13,14 +16,25 @@ function safeEqual(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
-async function validSignature(rawBody: string, secretHash: string, req: Request) {
+async function validSignature(
+  rawBody: string,
+  secretHash: string,
+  req: Request,
+) {
   const signature = req.headers.get("flutterwave-signature") ?? "";
   if (signature) {
     const key = await crypto.subtle.importKey(
-      "raw", new TextEncoder().encode(secretHash),
-      { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+      "raw",
+      new TextEncoder().encode(secretHash),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
     );
-    const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+    const digest = await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(rawBody),
+    );
     const expected = btoa(String.fromCharCode(...new Uint8Array(digest)));
     if (safeEqual(signature, expected)) return true;
   }
@@ -28,7 +42,9 @@ async function validSignature(rawBody: string, secretHash: string, req: Request)
   return safeEqual(legacyHash, secretHash);
 }
 function obj(value: unknown): Record<string, unknown> {
-  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
   return {};
 }
 function normalizeAccount(value: unknown): string {
@@ -37,7 +53,9 @@ function normalizeAccount(value: unknown): string {
 function metaObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
   if (typeof value === "string") {
-    try { return obj(JSON.parse(value)); } catch (_) {}
+    try {
+      return obj(JSON.parse(value));
+    } catch (_) {}
   }
   return {};
 }
@@ -45,14 +63,21 @@ function metaObject(value: unknown): Record<string, unknown> {
 serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const secretHash = Deno.env.get("FLW_WEBHOOK_SECRET_HASH");
-  if (!secretHash) return json({ error: "Webhook authentication is not configured" }, 503);
+  if (!secretHash) {
+    return json({ error: "Webhook authentication is not configured" }, 503);
+  }
   const rawBody = await req.text();
-  if (!await validSignature(rawBody, secretHash, req)) return json({ error: "Webhook authentication failed" }, 401);
+  if (!await validSignature(rawBody, secretHash, req)) {
+    return json({ error: "Webhook authentication failed" }, 401);
+  }
 
   const secret = Deno.env.get("FLUTTERWAVE_SECRET_KEY") ?? "";
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!secret.startsWith("FLWSECK-") || secret.startsWith("FLWSECK_TEST-") || !supabaseUrl || !serviceKey) {
+  if (
+    !secret.startsWith("FLWSECK-") || secret.startsWith("FLWSECK_TEST-") ||
+    !supabaseUrl || !serviceKey
+  ) {
     return json({ error: "Server configuration incomplete" }, 503);
   }
 
@@ -62,12 +87,14 @@ serve(async (req) => {
     const nestedEvent = obj(body?.event);
     const eventType = String(
       nestedEvent?.type ?? body?.["event.type"] ?? body?.event_type ??
-      (typeof body?.event === "string" ? body.event : (body?.type ?? ""))
+      (typeof body?.event === "string" ? body.event : (body?.type ?? "")),
     ).toUpperCase();
 
     // Flutterwave virtual-account transfers may arrive as BANK_TRANSFER_TRANSACTION
     // or as charge.completed with the bank-transfer event type in the payload.
-    const paymentType = String(eventData.payment_type ?? eventData.paymentType ?? "").toLowerCase();
+    const paymentType = String(
+      eventData.payment_type ?? eventData.paymentType ?? ""
+    ).toLowerCase();
     const isBankTransferEvent =
       eventType === "BANK_TRANSFER_TRANSACTION" ||
       (eventType === "CHARGE.COMPLETED" && paymentType === "bank_transfer");
@@ -77,16 +104,23 @@ serve(async (req) => {
     const webhookId = String(eventData.id ?? "").trim();
     const webhookFlwRef = String(eventData.flw_ref ?? "").trim();
     const webhookAmount = Number(eventData.amount);
-    const metadata = metaObject(body?.meta_data ?? eventData?.meta_data ?? body?.metadata);
+    const metadata = metaObject(
+      body?.meta_data ?? eventData?.meta_data ?? body?.metadata,
+    );
     const receivingAccount = normalizeAccount(
-      metadata.virtualaccountnumber ?? metadata.virtual_account_number ??
-      metadata.account_number ?? metadata.virtualAccountNumber
+      metadata.virtualaccountnumber ??
+      metadata.virtual_account_number ?? metadata.account_number ??
+      metadata.virtualAccountNumber,
     );
     if (
       !txRef || txRef.length > 128 ||
       (receivingAccount.length > 0 && !/^\d{10}$/.test(receivingAccount))
     ) {
-      return json({ received: true, pending_reconciliation: true, reason: "Missing transaction or receiving-account metadata" });
+      return json({
+        received: true,
+        pending_reconciliation: true,
+        reason: "Missing transaction or receiving-account metadata",
+      });
     }
 
     // The signed webhook identifies the receiving virtual account. Independently verify
@@ -101,7 +135,12 @@ serve(async (req) => {
     const listedTx = byRef?.data;
     const transactionId = String(listedTx?.id ?? "");
     if (!byRefResponse.ok || byRef?.status !== "success" || !/^\d+$/.test(transactionId)) {
-      return json({ received: true, pending_reconciliation: true, reason: "Flutterwave reference verification did not return a transaction ID" });
+      return json({
+        received: true,
+        pending_reconciliation: true,
+        reason:
+          "Flutterwave reference verification did not return a transaction ID",
+      });
     }
 
     const verifyResponse = await fetch(
@@ -113,17 +152,24 @@ serve(async (req) => {
     );
     const verified = await verifyResponse.json();
     const tx = verified?.data;
-    if (!verifyResponse.ok || verified?.status !== "success" || !tx ||
-        String(tx.id) !== transactionId || tx.status !== "successful" ||
-        String(tx.tx_ref ?? "") !== txRef ||
-        String(tx.currency ?? "").toUpperCase() !== "NGN" ||
-        String(tx.payment_type ?? "").toLowerCase() !== "bank_transfer" ||
-        !Number.isFinite(Number(tx.amount)) || Number(tx.amount) <= 0 ||
-        (webhookId && webhookId !== transactionId) ||
-        (webhookFlwRef && String(tx.flw_ref ?? "") !== webhookFlwRef) ||
-        (Number.isFinite(webhookAmount) && webhookAmount > 0 && Math.abs(Number(tx.amount) - webhookAmount) > 0.01)
+    if (
+      !verifyResponse.ok || verified?.status !== "success" || !tx ||
+      String(tx.id) !== transactionId || tx.status !== "successful" ||
+      String(tx.tx_ref ?? "") !== txRef ||
+      String(tx.currency ?? "").toUpperCase() !== "NGN" ||
+      String(tx.payment_type ?? "").toLowerCase() !== "bank_transfer" ||
+      !Number.isFinite(Number(tx.amount)) || Number(tx.amount) <= 0 ||
+      (webhookId && webhookId !== transactionId) ||
+      (webhookFlwRef && String(tx.flw_ref ?? "") !== webhookFlwRef) ||
+      (Number.isFinite(webhookAmount) && webhookAmount > 0 &&
+        Math.abs(Number(tx.amount) - webhookAmount) > 0.01)
     ) {
-      return json({ received: true, rejected: true, reason: "Provider verification did not match the signed webhook" });
+    ) {
+      return json({
+        received: true,
+        rejected: true,
+        reason: "Provider verification did not match the signed webhook",
+      });
     }
 
     const supabase = createClient(supabaseUrl, serviceKey, {
@@ -142,10 +188,20 @@ serve(async (req) => {
         normalizeAccount(profile.virtual_account_number) !== receivingAccount) ||
       (!receivingAccount && String(profile.virtual_order_ref ?? "") !== txRef)
     ) {
-      return json({ received: true, pending_reconciliation: true, reason: "No unique wallet profile matches the verified transaction reference or signed receiving account" });
+      return json({
+        received: true,
+        pending_reconciliation: true,
+        reason:
+          "No unique wallet profile matches the verified transaction reference or signed receiving account",
+      });
     }
     if (profile.virtual_order_ref && String(profile.virtual_order_ref) !== txRef) {
-      return json({ received: true, pending_reconciliation: true, reason: "Transaction reference conflicts with the profile's saved virtual-account reference" });
+      return json({
+        received: true,
+        pending_reconciliation: true,
+        reason:
+          "Transaction reference conflicts with the profile's saved virtual-account reference",
+      });
     }
 
     const { data: credited, error: creditError } = await supabase.rpc(
@@ -163,8 +219,8 @@ serve(async (req) => {
           originator_name: metadata.originatorname ?? null,
           originator_bank: metadata.bankname ?? null,
           reconciliation_method:
-            "signed_webhook_plus_provider_reference_and_id_verification"
-        }
+            "signed_webhook_plus_provider_reference_and_id_verification",
+        },
       }
     );
     if (creditError) throw creditError;
@@ -179,7 +235,7 @@ serve(async (req) => {
       receiving_account_confirmed: Boolean(receivingAccount),
       profile_mapping_method: receivingAccount
         ? "receiving_account"
-        : "stored_virtual_order_ref"
+        : "stored_virtual_order_ref",
     });
   } catch (_) {
     return json({ error: "Webhook processing temporarily failed" }, 500);
