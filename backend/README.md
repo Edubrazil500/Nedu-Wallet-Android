@@ -1,37 +1,33 @@
-# Nedu Wallet API
+# Nedu Wallet API prototype — NOT the production wallet backend
 
-NestJS, PostgreSQL and Prisma backend for the Nedu Wallet Android application.
+## Critical architecture notice
 
-## Safety status
-This is the initial backend foundation, not approval to accept or custody customer funds. Flutterwave live calls are disabled by default (FLW_LIVE_ENABLED=false), and bank transfers are deliberately unavailable until withdrawal ledger reservations and risk controls are completed. Do not enable live payments until legal/regulatory review, Flutterwave production approval, security review, reconciliation testing and incident procedures are signed off.
+The Android application in this repository is being integrated with the existing Supabase project used by the iOS app. This NestJS/Prisma service is a separate prototype with its own `User`, `Wallet`, `LedgerAccount`, and PostgreSQL schema. It does **not** authenticate against Supabase Auth, does **not** read the existing seven-row-per-user Supabase wallet model, and is **not** connected to the live Nedu Wallet project.
 
-## Local setup
-1. Install Node.js 20+ and PostgreSQL 15+.
-2. Copy .env.example to .env and set a local database URL and random JWT secret.
-3. Run npm install.
-4. Run npm run prisma:generate.
-5. Run npm run prisma:dev -- --name init.
-6. Run npm run start:dev.
+**Do not deploy this service as the production wallet backend, point the Android app at it, or create customer accounts in it.** Doing so would create a second, disconnected account and balance system. The Prisma schema and migrations are not migrations for the existing Supabase project.
 
-## Initial endpoints
-- GET /api/v1/health
-- POST /api/v1/auth/register
-- POST /api/v1/auth/login
-- GET /api/v1/wallet/me (Bearer token)
-- POST /api/v1/payments/deposits/checkout (Bearer token; provider calls require explicit enablement)
-- POST /api/v1/payments/virtual-accounts/dynamic (Bearer token; amount-specific NGN account)
-- POST /api/v1/webhooks/flutterwave
+## Payment safety
 
-## Render deployment
-The repository-level render.yaml defines a managed PostgreSQL database and Node web service. Create a Blueprint from this repository. Set FLW_SECRET_KEY, FLW_WEBHOOK_SECRET and CORS_ORIGINS in the Render dashboard. Keep FLW_LIVE_ENABLED=false while validating the integration.
+- The Flutterwave adapter is sandbox-only. It requires `FLW_ENVIRONMENT=test` and a secret beginning with `FLWSECK_TEST-`.
+- The adapter uses a fixed Flutterwave API host and cannot be redirected to an arbitrary host.
+- A Live key is deliberately rejected by this branch. Do not paste provider secrets into source control, Android configuration, chat, or build logs.
+- Transfers/withdrawals remain disabled.
+- A successful build does not establish provider, webhook, ledger, compliance, reconciliation, or production readiness.
 
-## Important notes
-- Store password hashes only; never store plaintext passwords.
-- Never put Flutterwave secret keys in Android, source control, build variables or client requests.
-- A webhook is not sufficient to credit a wallet. The handler re-verifies the transaction with Flutterwave and compares reference, currency and amount.
-- Ledger journal rows are append-only by application convention. Do not expose update/delete operations for ledger entries.
-- Wallet balance is derived from ledger entries, not a client-supplied balance.
-- Dynamic NGN virtual accounts are implemented. Static virtual accounts require BVN/NIN handling and a separate privacy/KYC design; they are intentionally not exposed yet.
-- Transfers/withdrawals remain disabled until a complete reserve/settle/release workflow, beneficiary verification, limits, fraud screening, reconciliation and regulatory sign-off are in place.
+## Known prototype limitations
 
-Flutterwave documentation: https://developer.flutterwave.com/docs/virtual-accounts/ngn and https://developer.flutterwave.com/docs/webhooks
+The standalone Prisma model has one wallet per user and is incompatible with the existing Supabase multi-currency wallet model. Its separate password/JWT authentication system would create identities unrelated to existing Supabase Auth users. Its payment/webhook implementation has not passed the required concurrency, retry, reconciliation, fraud, and end-to-end tests. It must not be used to hold or move customer funds.
+
+## Local sandbox-only development
+
+Use synthetic users and a dedicated disposable PostgreSQL database only. Configure a Flutterwave Test key in a local secret store and set `FLW_ENVIRONMENT=test`. Never use the existing production Live key for local or CI work.
+
+## Correct production architecture
+
+The production Android app must continue to use the existing Supabase Auth project and its existing `profiles`, `wallets`, `transactions`, and related tables. Provider credentials belong only in reviewed server-side Supabase Edge Function secrets. Database migrations must be additive, reviewed against the actual live schema, and tested in a separate staging Supabase project before any production deployment.
+
+See:
+- `../supabase/IOS_SUPABASE_COMPATIBILITY_AUDIT.md`
+- `../supabase/IOS_VIRTUAL_ACCOUNT_FUNCTION_AUDIT.md`
+- `../supabase/SECURE_MONEY_OPERATIONS_PLAN.md`
+- `../supabase/REAL_MONEY_RELEASE_GATE.md`
