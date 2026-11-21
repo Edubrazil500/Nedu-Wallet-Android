@@ -10,6 +10,7 @@ function json(data: unknown, status = 200) {
     },
   });
 }
+
 function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -17,12 +18,40 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+async function validSignature(rawBody: string, secretHash: string, req: Request) {
+  const signature = req.headers.get("flutterwave-signature") ?? "";
+  if (signature) {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secretHash),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const digest = await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(rawBody),
+    );
+    const expected = btoa(String.fromCharCode(...new Uint8Array(digest)));
+    if (safeEqual(signature, expected)) return true;
+  }
+
+  // Backward compatibility for older Flutterwave v3 webhook configurations.
+  const legacyHash = req.headers.get("verif-hash") ?? "";
+  return legacyHash.length > 0 && safeEqual(legacyHash, secretHash);
+}
+
 serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const expectedHash = Deno.env.get("FLW_WEBHOOK_SECRET_HASH");
-  const suppliedHash = req.headers.get("verif-hash") ?? "";
-  if (!expectedHash || !safeEqual(suppliedHash, expectedHash)) {
+  if (!expectedHash) {
+    return json({ error: "Webhook authentication is not configured" }, 503);
+  }
+
+  const rawBody = await req.text();
+  if (!await validSignature(rawBody, expectedHash, req)) {
     return json({ error: "Webhook authentication failed" }, 401);
   }
 
@@ -34,8 +63,9 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
-    if (body?.event !== "charge.completed") {
+    const body = JSON.parse(rawBody);
+    const eventType = body?.event ?? body?.type;
+    if (eventType !== "charge.completed") {
       return json({ received: true, ignored: true });
     }
 
@@ -72,15 +102,18 @@ serve(async (req) => {
       return json({ received: true, rejected: true });
     }
 
-    // Static virtual-account references are created by this backend and stored per profile.
     const supabase = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: profile, error: profileError } = await supabase
-      .from("profiles").select("id").eq("virtual_order_ref", String(tx.tx_ref))
+      .from("profiles")
+      .select("id")
+      .eq("virtual_order_ref", String(tx.tx_ref))
       .maybeSingle();
     if (profileError) throw profileError;
-    if (!profile) return json({ received: true, pending_reconciliation: true });
+    if (!profile) {
+      return json({ received: true, pending_reconciliation: true });
+    }
 
     const { data: credited, error: creditError } = await supabase.rpc(
       "credit_verified_flutterwave_funding",
@@ -103,8 +136,7 @@ serve(async (req) => {
       credited: credited === true,
       duplicate: credited === false,
     });
-  } catch (_error) {
-    // Do not leak provider responses, account data, or secrets to the caller.
+  } catch (_) {
     return json({ error: "Webhook processing temporarily failed" }, 500);
   }
 });
