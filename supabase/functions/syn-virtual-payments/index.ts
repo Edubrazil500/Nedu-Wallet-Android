@@ -116,6 +116,7 @@ serve(async (req) => {
     return out({
       ok: true,
       verified: checked,
+      credited,
       credited_amount: credited,
       duplicates,
     });
