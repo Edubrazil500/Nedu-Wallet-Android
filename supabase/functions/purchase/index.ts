@@ -349,11 +349,40 @@ serve(async (req) => {
       p_amount: amount,
     });
     if (reserveError) {
+      const duplicateReservation =
+        reserveError.code === "23505" ||
+        reserveError.message.includes(
+          "purchase_transactions_one_active_bill_per_account_uidx",
+        );
       await admin.from("purchase_transactions").update({
         status: "failed",
         error_message: reserveError.message,
         updated_at: new Date().toISOString(),
       }).eq("id", purchase.id).eq("user_id", auth.user.id);
+
+      if (duplicateReservation) {
+        const { data: pending } = await admin
+          .from("purchase_transactions")
+          .select("*")
+          .eq("user_id", auth.user.id)
+          .eq("provider_code", biller)
+          .eq("account_number", customer)
+          .eq("wallet_debit_status", "reserved")
+          .in("status", ["processing", "review"])
+          .filter("metadata->>item_code", "eq", itemCode)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (pending) {
+          return reply({
+            purchase: pending,
+            pending_reconciliation: true,
+            message:
+              "A matching bill request is already awaiting provider confirmation. Check its status before trying again.",
+          }, 202);
+        }
+      }
+
       return reply({
         error: reserveError.message.includes("Insufficient")
           ? "Insufficient NGN wallet balance."
