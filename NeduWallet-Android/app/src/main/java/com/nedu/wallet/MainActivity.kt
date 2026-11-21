@@ -41,6 +41,7 @@ import com.nedu.wallet.data.WalletRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
+import android.util.Base64
 
 private val NeduRed = Color(0xFFC91D27)
 private val DeepRed = Color(0xFF98151F)
@@ -75,6 +76,11 @@ fun NeduApp() {
     var wallets by remember { mutableStateOf<List<WalletBalance>>(emptyList()) }
     var selectedWallet by remember { mutableStateOf<WalletBalance?>(null) }
     var profile by remember { mutableStateOf<AccountProfile?>(null) }
+    var identityType by remember { mutableStateOf("bvn") }
+    var identityNumber by remember { mutableStateOf("") }
+    var identitySelfie by remember { mutableStateOf<String?>(null) }
+    var identityMessage by remember { mutableStateOf<String?>(null) }
+    var identityError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val walletRepository = remember {
@@ -97,6 +103,24 @@ fun NeduApp() {
                 } catch (error: Exception) {
                     authError = error.message ?: "Unable to upload your profile photo."
                 }
+            }
+        }
+    }
+
+    val identityPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            try {
+                val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                require(mime in setOf("image/jpeg", "image/png")) { "Choose a JPG or PNG selfie." }
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: throw IllegalStateException("Could not read the selected selfie.")
+                require(bytes.size <= 6 * 1024 * 1024) { "Choose a selfie smaller than 6 MB." }
+                identitySelfie = "data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+                identityError = null
+                identityMessage = "Selfie selected. It will be sent securely for identity matching when you submit."
+            } catch (error: Exception) {
+                identitySelfie = null
+                identityError = error.message ?: "Unable to read that selfie."
             }
         }
     }
@@ -195,6 +219,41 @@ fun NeduApp() {
                 "send", "receive", "swap", "transfer" -> ActionFlowScreen(screen, wallets) { screen = "home" }
                 "support-security-2fa", "support-backup-recovery", "support-notifications", "support-help-support", "support-terms-privacy" ->
                     SupportDetailScreen(screen) { screen = "profile" }
+                "identity-verification" -> IdentityVerificationScreen(
+                    idType = identityType,
+                    onIdType = { identityType = it; identityNumber = ""; identityMessage = null; identityError = null },
+                    idNumber = identityNumber,
+                    onIdNumber = { identityNumber = it.filter(Char::isDigit).take(11) },
+                    hasSelfie = identitySelfie != null,
+                    message = identityMessage,
+                    errorMessage = identityError,
+                    loading = isLoading,
+                    onChooseSelfie = { identityPhotoPicker.launch("image/*") },
+                    onBack = { identityError = null; identityMessage = null; screen = "profile" },
+                    onSubmit = {
+                        val repository = walletRepository
+                        if (repository == null) {
+                            identityError = "Identity verification is not connected in this build."
+                        } else if (identitySelfie == null) {
+                            identityError = "Choose a clear selfie before continuing."
+                        } else {
+                            scope.launch {
+                                isLoading = true
+                                identityError = null
+                                identityMessage = null
+                                try {
+                                    identityMessage = repository.verifyIdentity(identityType, identityNumber, identitySelfie!!)
+                                    identityNumber = ""
+                                    identitySelfie = null
+                                } catch (error: Exception) {
+                                    identityError = error.message ?: "Identity verification failed. Please try again."
+                                } finally {
+                                    isLoading = false
+                                }
+                            }
+                        }
+                    }
+                )
                 "card" -> CardScreen(onNavigate = { screen = it })
                 "edit-profile" -> EditProfileScreen(
                     profile = profile,
@@ -628,6 +687,12 @@ fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onEdit
                 Spacer(Modifier.width(8.dp))
                 Text("Edit Personal Information", fontWeight = FontWeight.SemiBold)
             }
+            OutlinedButton(onClick = { onNavigate("identity-verification") }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepRed)) {
+                Icon(Icons.Default.VerifiedUser, null)
+                Spacer(Modifier.width(8.dp))
+                Text("BVN & NIN Identity Verification", fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(18.dp))
             Spacer(Modifier.height(22.dp))
             Text("Account & Support", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
             Spacer(Modifier.height(10.dp))
@@ -796,6 +861,71 @@ fun SupportDetailScreen(topic: String, onBack: () -> Unit) {
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Soft), shape = RoundedCornerShape(20.dp)) {
             Text(detail, Modifier.padding(18.dp), color = Ink, fontSize = 15.sp, lineHeight = 23.sp)
         }
+    }
+}
+
+@Composable
+fun IdentityVerificationScreen(
+    idType: String,
+    onIdType: (String) -> Unit,
+    idNumber: String,
+    onIdNumber: (String) -> Unit,
+    hasSelfie: Boolean,
+    message: String?,
+    errorMessage: String?,
+    loading: Boolean,
+    onChooseSelfie: () -> Unit,
+    onBack: () -> Unit,
+    onSubmit: () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        TextButton(onClick = onBack) {
+            Icon(Icons.Default.ArrowBack, null, tint = DeepRed)
+            Text("Back to profile", color = DeepRed)
+        }
+        Text("Identity Verification", fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Text(
+            "Complete both BVN and NIN checks with a live selfie match to unlock eligible fiat wallet services.",
+            color = Muted, fontSize = 14.sp, lineHeight = 21.sp
+        )
+        Card(colors = CardDefaults.cardColors(containerColor = Soft), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Your information is sent over an encrypted connection to Nedu Wallet's verification service and Prembly. It is not displayed publicly.", color = Ink, fontSize = 13.sp, lineHeight = 19.sp)
+                Text("Never share your BVN, NIN or selfie in chat or with anyone claiming to be support.", color = DeepRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Text("Choose verification type", color = Ink, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FilterChip(selected = idType == "bvn", onClick = { onIdType("bvn") }, label = { Text("BVN") })
+            FilterChip(selected = idType == "nin", onClick = { onIdType("nin") }, label = { Text("NIN") })
+        }
+        Text(if (idType == "bvn") "11-digit Bank Verification Number" else "11-digit National Identification Number", color = Ink, fontWeight = FontWeight.Medium)
+        OutlinedTextField(
+            value = idNumber,
+            onValueChange = onIdNumber,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Enter 11 digits") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            shape = RoundedCornerShape(16.dp),
+            colors = fieldColors()
+        )
+        OutlinedButton(onClick = onChooseSelfie, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
+            Icon(Icons.Default.CameraAlt, null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (hasSelfie) "Selfie selected · Choose another" else "Choose selfie photo")
+        }
+        if (message != null) Text(message, color = Color(0xFF247A42), fontSize = 13.sp)
+        if (errorMessage != null) Text(errorMessage, color = NeduRed, fontSize = 13.sp)
+        PrimaryButton(
+            if (loading) "Verifying..." else "Verify ${idType.uppercase()}",
+            onClick = onSubmit,
+            enabled = !loading && idNumber.length == 11 && hasSelfie
+        )
+        Text("Complete the second check separately. Fiat wallet access remains restricted until both BVN and NIN are verified.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
     }
 }
 
