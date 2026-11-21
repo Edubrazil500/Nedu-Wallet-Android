@@ -352,6 +352,11 @@ serve(async (req) => {
             purchase: existingByRequest,
             duplicate_request: true,
             pending_reconciliation: pending,
+            message: pending
+              ? "Your earlier bill request is still awaiting provider confirmation."
+              : existingByRequest.status === "success"
+              ? "This bill was already paid successfully."
+              : "Your earlier bill request did not complete. Check its status before retrying.",
           }, pending ? 202 : 200);
         }
 
