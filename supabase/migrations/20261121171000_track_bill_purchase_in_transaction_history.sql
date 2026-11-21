@@ -43,7 +43,7 @@ create or replace function public.reserve_wallet_purchase(
 ) returns boolean
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_purchase public.purchase_transactions%rowtype;
@@ -124,7 +124,7 @@ create or replace function public.settle_wallet_purchase(
 ) returns text
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_purchase public.purchase_transactions%rowtype;
