@@ -1,15 +1,46 @@
--- Cover account-scoped foreign keys and optimize existing RLS predicates.
-CREATE INDEX IF NOT EXISTS idx_bill_validations_user_id ON public.bill_validations(user_id);
-CREATE INDEX IF NOT EXISTS idx_esim_orders_user_id ON public.esim_orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_flutterwave_funding_events_user_id ON public.flutterwave_funding_events(user_id);
-CREATE INDEX IF NOT EXISTS idx_gift_card_orders_user_id ON public.gift_card_orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_nedu_cards_user_id ON public.nedu_cards(user_id);
-CREATE INDEX IF NOT EXISTS idx_purchase_orders_user_id ON public.purchase_orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON public.transactions(user_id);
-CREATE INDEX IF NOT EXISTS idx_wallet_transfer_requests_user_id ON public.wallet_transfer_requests(user_id);
+-- Cover account-scoped foreign keys where the corresponding legacy app tables exist.
+-- The production project has these tables, while the minimal local foundation schema may not.
+DO $$
+DECLARE
+  item record;
+BEGIN
+  FOR item IN
+    SELECT * FROM (VALUES
+      ('bill_validations','user_id','idx_bill_validations_user_id'),
+      ('esim_orders','user_id','idx_esim_orders_user_id'),
+      ('flutterwave_funding_events','user_id','idx_flutterwave_funding_events_user_id'),
+      ('gift_card_orders','user_id','idx_gift_card_orders_user_id'),
+      ('nedu_cards','user_id','idx_nedu_cards_user_id'),
+      ('purchase_orders','user_id','idx_purchase_orders_user_id'),
+      ('transactions','user_id','idx_transactions_user_id'),
+      ('wallet_transfer_requests','user_id','idx_wallet_transfer_requests_user_id')
+    ) AS indexes(table_name,column_name,index_name)
+  LOOP
+    IF to_regclass(format('public.%I',item.table_name)) IS NOT NULL
+       AND EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_schema='public'
+           AND table_name=item.table_name
+           AND column_name=item.column_name
+       ) THEN
+      EXECUTE format(
+        'CREATE INDEX IF NOT EXISTS %I ON public.%I(%I)',
+        item.index_name,item.table_name,item.column_name
+      );
+    END IF;
+  END LOOP;
+END $$;
 
-DROP POLICY IF EXISTS "own transactions" ON public.transactions;
-DROP POLICY IF EXISTS "user can read own security" ON public.user_security;
+-- These named legacy policies are only present in the full application schema.
+DO $$
+BEGIN
+  IF to_regclass('public.transactions') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "own transactions" ON public.transactions;
+  END IF;
+  IF to_regclass('public.user_security') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "user can read own security" ON public.user_security;
+  END IF;
+END $$;
 
 DO $$
 DECLARE
