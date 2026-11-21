@@ -42,17 +42,22 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // This feature branch is deliberately sandbox-only. A live secret must never
-  // be used by development or staging code. Live-provider support requires a
-  // separately reviewed production release, not just an environment toggle.
-  if (
-    flutterwaveEnvironment !== "test" ||
-    !flutterwaveSecret.startsWith("FLWSECK_TEST-")
-  ) {
+  // Live mode is prepared for production review, but stays opt-in and
+  // disabled unless an operator explicitly sets FLW_LIVE_ENABLED=true.
+  // This endpoint only resolves bank-account names; it never moves money.
+  const liveEnabled = Deno.env.get("FLW_LIVE_ENABLED")?.trim().toLowerCase() ===
+    "true";
+  const testKey = flutterwaveSecret.startsWith("FLWSECK_TEST-");
+  const liveKey = flutterwaveSecret.startsWith("FLWSECK-") && !testKey;
+  const testMode = flutterwaveEnvironment === "test" && testKey;
+  const liveMode = flutterwaveEnvironment === "live" && liveKey &&
+    liveEnabled;
+
+  if (!testMode && !liveMode) {
     return json(
       {
         error:
-          "Bank verification is disabled until a Flutterwave Test key is configured.",
+          "Bank verification is disabled. Configure a matching provider environment and key; Live mode also requires explicit operator enablement.",
       },
       503,
     );
