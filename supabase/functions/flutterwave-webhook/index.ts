@@ -82,7 +82,10 @@ serve(async (req) => {
       metadata.virtualaccountnumber ?? metadata.virtual_account_number ??
       metadata.account_number ?? metadata.virtualAccountNumber
     );
-    if (!txRef || txRef.length > 128 || (receivingAccount.length > 0 && !/^\d{10}$/.test(receivingAccount))) {
+    if (
+      !txRef || txRef.length > 128 ||
+      (receivingAccount.length > 0 && !/^\d{10}$/.test(receivingAccount))
+    ) {
       return json({ received: true, pending_reconciliation: true, reason: "Missing transaction or receiving-account metadata" });
     }
 
@@ -133,9 +136,12 @@ serve(async (req) => {
       ? await profileQuery.eq("virtual_account_number", receivingAccount).maybeSingle()
       : await profileQuery.eq("virtual_order_ref", txRef).maybeSingle();
     if (profileError) throw profileError;
-    if (!profile ||
-        (receivingAccount && normalizeAccount(profile.virtual_account_number) !== receivingAccount) ||
-        (!receivingAccount && String(profile.virtual_order_ref ?? "") !== txRef)) {
+    if (
+      !profile ||
+      (receivingAccount &&
+        normalizeAccount(profile.virtual_account_number) !== receivingAccount) ||
+      (!receivingAccount && String(profile.virtual_order_ref ?? "") !== txRef)
+    ) {
       return json({ received: true, pending_reconciliation: true, reason: "No unique wallet profile matches the verified transaction reference or signed receiving account" });
     }
     if (profile.virtual_order_ref && String(profile.virtual_order_ref) !== txRef) {
@@ -156,7 +162,8 @@ serve(async (req) => {
           receiving_account_number: receivingAccount,
           originator_name: metadata.originatorname ?? null,
           originator_bank: metadata.bankname ?? null,
-          reconciliation_method: "signed_webhook_plus_provider_reference_and_id_verification"
+          reconciliation_method:
+            "signed_webhook_plus_provider_reference_and_id_verification"
         }
       }
     );
@@ -170,7 +177,9 @@ serve(async (req) => {
       amount: Number(tx.amount),
       currency: "NGN",
       receiving_account_confirmed: Boolean(receivingAccount),
-      profile_mapping_method: receivingAccount ? "receiving_account" : "stored_virtual_order_ref"
+      profile_mapping_method: receivingAccount
+        ? "receiving_account"
+        : "stored_virtual_order_ref"
     });
   } catch (_) {
     return json({ error: "Webhook processing temporarily failed" }, 500);
