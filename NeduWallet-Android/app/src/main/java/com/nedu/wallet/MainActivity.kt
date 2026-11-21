@@ -262,8 +262,12 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
         Spacer(Modifier.height(12.dp))
         Text("Log in to your Nedu Wallet account.", color = Muted, fontSize = 16.sp)
         Spacer(Modifier.height(28.dp))
-        SoftField(value = email, onValueChange = onEmail, hint = "Email", keyboard = KeyboardType.Email)
-        Spacer(Modifier.height(14.dp))
+        Text("Email address", Modifier.fillMaxWidth(), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        SoftField(value = email, onValueChange = onEmail, hint = "Enter your email address", keyboard = KeyboardType.Email)
+        Spacer(Modifier.height(12.dp))
+        Text("Password", Modifier.fillMaxWidth(), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
         OutlinedTextField(value = password, onValueChange = onPassword, modifier = Modifier.fillMaxWidth(),
             textStyle = TextStyle(color = Ink, fontSize = 16.sp),
             placeholder = { Text("Password", color = Color.LightGray) },
@@ -328,8 +332,12 @@ fun SignupScreen(
         Spacer(Modifier.height(12.dp))
         SoftField(value = phone, onValueChange = onPhone, hint = "Phone number (optional)", keyboard = KeyboardType.Phone)
         Spacer(Modifier.height(12.dp))
-        SoftField(value = email, onValueChange = onEmail, hint = "Email address", keyboard = KeyboardType.Email)
+        Text("Email address", Modifier.fillMaxWidth(), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        SoftField(value = email, onValueChange = onEmail, hint = "Enter your email address", keyboard = KeyboardType.Email)
         Spacer(Modifier.height(12.dp))
+        Text("Password", Modifier.fillMaxWidth(), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             value = password,
             onValueChange = onPassword,
