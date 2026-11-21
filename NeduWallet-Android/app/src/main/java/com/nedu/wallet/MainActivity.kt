@@ -47,6 +47,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import android.util.Base64
+import java.util.UUID
 
 private val NeduRed = Color(0xFFC91D27)
 private val DeepRed = Color(0xFF98151F)
@@ -1017,6 +1018,7 @@ fun BillsScreen(
     var purchaseEnabled by remember { mutableStateOf(false) }
     var purchasePending by remember { mutableStateOf(false) }
     var pendingPurchaseId by remember { mutableStateOf<String?>(null) }
+    var billRequestId by remember { mutableStateOf(UUID.randomUUID().toString()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -1163,6 +1165,7 @@ fun BillsScreen(
                             Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable {
                                 selectedItem = item
                                 customerId = ""
+                                billRequestId = UUID.randomUUID().toString()
                                 customerValidated = !item.isResolvable || item.isAirtime
                                 purchasePending = false
                                 pendingPurchaseId = null
@@ -1197,6 +1200,7 @@ fun BillsScreen(
                         value = customerId,
                         onValueChange = {
                             customerId = it
+                            billRequestId = UUID.randomUUID().toString()
                             customerValidated = !item.isResolvable || item.isAirtime
                             notice = null
                         },
@@ -1273,6 +1277,7 @@ fun BillsScreen(
                                             status == "success" -> {
                                                 purchasePending = false
                                                 pendingPurchaseId = null
+                                                billRequestId = UUID.randomUUID().toString()
                                                 onWalletRefresh()
                                                 notice = "Payment completed successfully."
                                             }
@@ -1310,6 +1315,7 @@ fun BillsScreen(
                                         itemCode = item.code,
                                         customerId = customerId,
                                         amount = item.amount,
+                                        idempotencyKey = billRequestId,
                                     )
                                     val pending = result.optBoolean("pending_reconciliation", false)
                                     val purchase = result.optJSONObject("purchase")
@@ -1322,11 +1328,15 @@ fun BillsScreen(
                                             "Your request is awaiting provider confirmation. Your funds remain reserved. Do not submit it again.",
                                         )
                                     } else if (purchase?.optString("status") == "success") {
+                                        billRequestId = UUID.randomUUID().toString()
                                         onWalletRefresh()
                                         notice = "Payment completed successfully."
                                     } else {
                                         notice = result.optString("message", "Bill request submitted.")
                                     }
+                                } catch (e: IllegalStateException) {
+                                    billRequestId = UUID.randomUUID().toString()
+                                    error = e.message ?: "Bill payment could not be completed."
                                 } catch (e: Exception) {
                                     error = e.message ?: "Bill payment could not be completed."
                                 } finally {
