@@ -36,7 +36,18 @@ jobs:
 
       - name: Compile Android app
         working-directory: NeduWallet-Android
-        run: gradle --no-daemon :app:assembleDebug
+        run: |
+          for attempt in 1 2 3; do
+            echo "Android build attempt ${attempt}/3"
+            if gradle --no-daemon --refresh-dependencies :app:assembleDebug; then
+              exit 0
+            fi
+            if [ "${attempt}" -lt 3 ]; then
+              echo "Dependency download/build failed; retrying in 20 seconds..."
+              sleep 20
+            fi
+          done
+          exit 1
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
