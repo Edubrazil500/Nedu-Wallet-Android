@@ -107,21 +107,22 @@ fun NeduApp() {
         }
     }
 
-    val identityPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
+    val identityCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) {
             try {
-                val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-                require(mime in setOf("image/jpeg", "image/png")) { "Choose a JPG or PNG selfie." }
-                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?: throw IllegalStateException("Could not read the selected selfie.")
-                require(bytes.size <= 6 * 1024 * 1024) { "Choose a selfie smaller than 6 MB." }
-                identitySelfie = "data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+                val output = java.io.ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, output)
+                val bytes = output.toByteArray()
+                require(bytes.size <= 6 * 1024 * 1024) { "Captured selfie is too large. Please try again." }
+                identitySelfie = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
                 identityError = null
-                identityMessage = "Selfie selected. It will be sent securely for identity matching when you submit."
+                identityMessage = "Camera selfie captured. It will be checked by Prembly when you submit."
             } catch (error: Exception) {
                 identitySelfie = null
-                identityError = error.message ?: "Unable to read that selfie."
+                identityError = error.message ?: "Unable to capture that selfie."
             }
+        } else {
+            identityError = "Camera capture was cancelled. Please take a selfie to continue."
         }
     }
 
@@ -228,7 +229,7 @@ fun NeduApp() {
                     message = identityMessage,
                     errorMessage = identityError,
                     loading = isLoading,
-                    onChooseSelfie = { identityPhotoPicker.launch("image/*") },
+                    onChooseSelfie = { identityCamera.launch(null) },
                     onBack = { identityError = null; identityMessage = null; screen = "profile" },
                     onSubmit = {
                         val repository = walletRepository
