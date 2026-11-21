@@ -267,6 +267,27 @@ serve(async (req) => {
       }
     }
 
+    const { data: activePending } = await admin
+      .from("purchase_transactions")
+      .select("*")
+      .eq("user_id", auth.user.id)
+      .eq("provider_code", biller)
+      .eq("account_number", customer)
+      .eq("wallet_debit_status", "reserved")
+      .in("status", ["processing", "review"])
+      .filter("metadata->>item_code", "eq", itemCode)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (activePending) {
+      return reply({
+        purchase: activePending,
+        pending_reconciliation: true,
+        message:
+          "A previous request for this bill is still awaiting provider confirmation. Check its status before submitting another payment.",
+      }, 202);
+    }
+
     const txRef = "NEDU-BILL-" +
       crypto.randomUUID().replace(/-/g, "").toUpperCase();
     let purchase: any = null;

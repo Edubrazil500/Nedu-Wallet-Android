@@ -223,6 +223,12 @@ class WalletRepository(
                 .put("customer_id", customerId.trim())
         )
 
+    suspend fun verifyBillPurchase(purchaseId: String): JSONObject =
+        callPurchaseFunction(
+            JSONObject().put("purchase_id", purchaseId),
+            "purchase-verify",
+        )
+
     suspend fun purchaseBill(
         categoryCode: String,
         billerCode: String,
@@ -241,11 +247,15 @@ class WalletRepository(
             .put("idempotency_key", idempotencyKey)
     )
 
-    private suspend fun callPurchaseFunction(payload: JSONObject): JSONObject =
+    private suspend fun callPurchaseFunction(
+        payload: JSONObject,
+        functionName: String = "purchase",
+    ): JSONObject =
         withContext(Dispatchers.IO) {
             val session = client.auth.currentSessionOrNull()
                 ?: throw IllegalStateException("Please sign in again.")
-            val endpoint = BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/purchase"
+            require(functionName in setOf("purchase", "purchase-verify"))
+            val endpoint = BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/" + functionName
             val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15_000

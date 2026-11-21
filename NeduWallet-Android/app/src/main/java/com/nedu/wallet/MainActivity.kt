@@ -1015,6 +1015,8 @@ fun BillsScreen(
     var customerId by remember { mutableStateOf("") }
     var customerValidated by remember { mutableStateOf(false) }
     var purchaseEnabled by remember { mutableStateOf(false) }
+    var purchasePending by remember { mutableStateOf(false) }
+    var pendingPurchaseId by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -1162,6 +1164,8 @@ fun BillsScreen(
                                 selectedItem = item
                                 customerId = ""
                                 customerValidated = !item.isResolvable || item.isAirtime
+                                purchasePending = false
+                                pendingPurchaseId = null
                                 error = null
                                 notice = null
                             },
@@ -1198,12 +1202,13 @@ fun BillsScreen(
                         },
                         hint = "Enter customer or phone number",
                         keyboard = KeyboardType.Text,
+                        enabled = !purchasePending,
                     )
                     Spacer(Modifier.height(10.dp))
                     if (item.isResolvable && !item.isAirtime) {
                         PrimaryButton(
                             label = if (loading) "Checking..." else "Validate customer",
-                            enabled = !loading && customerId.length in 5..40,
+                            enabled = !loading && !purchasePending && customerId.length in 5..40,
                             onClick = {
                                 scope.launch {
                                     loading = true
@@ -1248,9 +1253,51 @@ fun BillsScreen(
                         }
                     }
                     Spacer(Modifier.height(12.dp))
+                    if (purchasePending && pendingPurchaseId != null) {
+                        PrimaryButton(
+                            label = if (loading) "Checking..." else "Check payment status",
+                            enabled = !loading,
+                            onClick = {
+                                scope.launch {
+                                    loading = true
+                                    error = null
+                                    try {
+                                        val result = repository.verifyBillPurchase(pendingPurchaseId!!)
+                                        val purchase = result.optJSONObject("purchase")
+                                        val status = purchase?.optString("status")
+                                        when {
+                                            result.optBoolean("pending_reconciliation", false) ||
+                                                status == "review" || status == "processing" -> {
+                                                notice = "Flutterwave has not confirmed the final result. Your funds remain reserved. Check again shortly."
+                                            }
+                                            status == "success" -> {
+                                                purchasePending = false
+                                                pendingPurchaseId = null
+                                                onWalletRefresh()
+                                                notice = "Payment completed successfully."
+                                            }
+                                            status == "failed" || status == "refunded" -> {
+                                                purchasePending = false
+                                                pendingPurchaseId = null
+                                                onWalletRefresh()
+                                                notice = "Flutterwave confirmed the payment failed. The reserved amount has been returned to your NGN wallet."
+                                            }
+                                            else -> {
+                                                notice = "The provider result is still being checked. Do not submit another payment."
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        error = e.message ?: "Payment status could not be checked."
+                                    } finally {
+                                        loading = false
+                                    }
+                                }
+                            },
+                        )
+                    }
                     PrimaryButton(
                         label = if (loading) "Processing..." else "Pay bill",
-                        enabled = purchaseEnabled && customerValidated && customerId.length in 5..40 && !loading,
+                        enabled = purchaseEnabled && customerValidated && customerId.length in 5..40 && !loading && !purchasePending,
                         onClick = {
                             scope.launch {
                                 loading = true
@@ -1266,13 +1313,19 @@ fun BillsScreen(
                                     )
                                     val pending = result.optBoolean("pending_reconciliation", false)
                                     val purchase = result.optJSONObject("purchase")
-                                    notice = when {
-                                        pending -> "Your request is awaiting provider confirmation. Your funds remain reserved. Do not submit it again."
-                                        purchase?.optString("status") == "success" -> {
-                                            onWalletRefresh()
-                                            "Payment completed successfully."
-                                        }
-                                        else -> result.optString("message", "Bill request submitted.")
+                                    if (pending) {
+                                        pendingPurchaseId = purchase?.optString("id")
+                                            ?.takeIf { it.isNotBlank() }
+                                        purchasePending = pendingPurchaseId != null
+                                        notice = result.optString(
+                                            "message",
+                                            "Your request is awaiting provider confirmation. Your funds remain reserved. Do not submit it again.",
+                                        )
+                                    } else if (purchase?.optString("status") == "success") {
+                                        onWalletRefresh()
+                                        notice = "Payment completed successfully."
+                                    } else {
+                                        notice = result.optString("message", "Bill request submitted.")
                                     }
                                 } catch (e: Exception) {
                                     error = e.message ?: "Bill payment could not be completed."
@@ -1363,10 +1416,11 @@ fun PrimaryButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
 }
 
 @Composable
-fun SoftField(value: String, onValueChange: (String) -> Unit, hint: String, keyboard: KeyboardType = KeyboardType.Text) {
+fun SoftField(value: String, onValueChange: (String) -> Unit, hint: String, keyboard: KeyboardType = KeyboardType.Text, enabled: Boolean = true) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
         textStyle = TextStyle(color = Ink, fontSize = 16.sp),
         placeholder = { Text(hint, color = Muted) },
