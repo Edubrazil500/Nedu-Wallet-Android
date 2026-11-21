@@ -5,6 +5,9 @@ import com.nedu.wallet.BuildConfig
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.storage.storage
+import io.ktor.http.ContentType
+import java.util.UUID
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -110,6 +113,31 @@ class WalletRepository(
         }
     }
 
+    suspend fun uploadMyAvatar(bytes: ByteArray, mimeType: String): String {
+        require(bytes.isNotEmpty()) { "Choose a profile photo first." }
+        require(bytes.size <= 5 * 1024 * 1024) { "Choose an image smaller than 5 MB." }
+        require(mimeType in setOf("image/jpeg", "image/png", "image/webp")) {
+            "Choose a JPG, PNG or WEBP image."
+        }
+        val userId = currentUserId()
+            ?: throw IllegalStateException("Please sign in again.")
+        val extension = when (mimeType) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            else -> "jpg"
+        }
+        val path = "$" + "userId/" + UUID.randomUUID().toString() + "." + extension
+        val bucket = client.storage["avatars"]
+        bucket.upload(path, bytes) {
+            contentType = ContentType.parse(mimeType)
+        }
+        val publicUrl = bucket.publicUrl(path)
+        client.from("profiles").update(AvatarUpdate(publicUrl)) {
+            filter { eq("id", userId) }
+        }
+        return publicUrl
+    }
+
     suspend fun signOut() {
         client.auth.signOut()
     }
@@ -136,6 +164,7 @@ class WalletRepository(
                     email = row.email,
                     phone = row.phone,
                     country = row.country,
+                    avatarUrl = row.avatarUrl,
                 )
             }
     }
@@ -172,6 +201,7 @@ private data class ProfileRow(
     val email: String,
     val phone: String? = null,
     val country: String? = null,
+    val avatarUrl: String? = null,
 )
 
 data class AccountProfile(
@@ -180,7 +210,11 @@ data class AccountProfile(
     val email: String,
     val phone: String?,
     val country: String?,
+    val avatarUrl: String?,
 )
+
+@Serializable
+private data class AvatarUpdate(val avatarUrl: String)
 
 @Serializable
 private data class WalletRow(
