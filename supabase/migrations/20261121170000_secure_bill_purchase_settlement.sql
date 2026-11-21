@@ -57,6 +57,7 @@ create index if not exists purchase_transactions_pending_reconcile_idx
   where wallet_debit_status = 'reserved';
 
 alter table public.purchase_transactions enable row level security;
+grant all on table public.purchase_transactions to service_role;
 drop policy if exists "Users can view own purchases" on public.purchase_transactions;
 create policy "Users can view own purchases"
   on public.purchase_transactions
