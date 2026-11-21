@@ -48,6 +48,10 @@ serve(async (req) => {
     }
 
     const body = await req.json();
+    const currency = String(body?.currency ?? "NGN").toUpperCase();
+    if (currency !== "NGN") {
+      return reply({ error: "Only NGN virtual accounts are supported by the configured Flutterwave product. No foreign-currency account was created." }, 400);
+    }
     const bvn = String(body?.bvn ?? "").replace(/\s/g, "");
     if (!/^\d{11}$/.test(bvn)) {
       return reply({
