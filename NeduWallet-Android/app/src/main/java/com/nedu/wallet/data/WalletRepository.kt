@@ -214,6 +214,9 @@ class WalletRepository(
                     phone = row.phone,
                     country = row.country,
                     avatarUrl = row.avatarUrl,
+                    kycStatus = row.kycStatus,
+                    bvnVerifiedAt = row.bvnVerifiedAt,
+                    ninVerifiedAt = row.ninVerifiedAt,
                 )
             }
     }
@@ -251,6 +254,9 @@ private data class ProfileRow(
     val phone: String? = null,
     val country: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null,
+    @SerialName("kyc_status") val kycStatus: String? = null,
+    @SerialName("kyc_bvn_verified_at") val bvnVerifiedAt: String? = null,
+    @SerialName("kyc_nin_verified_at") val ninVerifiedAt: String? = null,
 )
 
 data class AccountProfile(
@@ -260,7 +266,14 @@ data class AccountProfile(
     val phone: String?,
     val country: String?,
     val avatarUrl: String?,
-)
+    val kycStatus: String?,
+    val bvnVerifiedAt: String?,
+    val ninVerifiedAt: String?,
+) {
+    val fiatKycComplete: Boolean
+        get() = kycStatus.equals("Verified", ignoreCase = true) &&
+            !bvnVerifiedAt.isNullOrBlank() && !ninVerifiedAt.isNullOrBlank()
+}
 
 @Serializable
 private data class AvatarUpdate(@SerialName("avatar_url") val avatarUrl: String)

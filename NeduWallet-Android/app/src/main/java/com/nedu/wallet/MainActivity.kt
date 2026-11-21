@@ -165,7 +165,7 @@ fun NeduApp() {
                                         if (wallets.count { it.isCrypto } != 2) {
                                             throw IllegalStateException("Your account was created, but its two crypto wallet records are not ready. Please contact Nedu Wallet support.")
                                         }
-                                        screen = if (wallets.any { !it.isCrypto }) "home" else "identity-verification"
+                                        screen = if (profile?.fiatKycComplete == true) "home" else "identity-verification"
                                     } else {
                                         password = ""
                                         authNotice = "Your account has been created. Please check your email and confirm your address before signing in."
@@ -248,7 +248,7 @@ fun NeduApp() {
                                     identitySelfie = null
                                     wallets = repository.loadMyWallets()
                                     profile = repository.loadMyProfile()
-                                    if (wallets.any { !it.isCrypto }) {
+                                    if (profile?.fiatKycComplete == true) {
                                         authNotice = resultMessage
                                         screen = "home"
                                     }
