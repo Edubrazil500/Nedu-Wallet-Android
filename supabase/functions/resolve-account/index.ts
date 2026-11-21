@@ -1,174 +1,27 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-  if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
-  }
-
-  const authorization = req.headers.get("Authorization") ?? "";
-  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) {
-    return json({ error: "Authentication required" }, 401);
-  }
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const flutterwaveSecret = Deno.env.get("FLW_SECRET_KEY");
-  const flutterwaveEnvironment = Deno.env.get("FLW_ENVIRONMENT")
-    ?.trim()
-    .toLowerCase();
-
-  if (!supabaseUrl || !anonKey || !flutterwaveSecret) {
-    return json(
-      { error: "Account verification service is not configured" },
-      503,
-    );
-  }
-
-  // Live mode is prepared for production review, but stays opt-in and
-  // disabled unless an operator explicitly sets FLW_LIVE_ENABLED=true.
-  // This endpoint only resolves bank-account names; it never moves money.
-  const liveEnabled = Deno.env.get("FLW_LIVE_ENABLED")?.trim().toLowerCase() ===
-    "true";
-  const testKey = flutterwaveSecret.startsWith("FLWSECK_TEST-");
-  const liveKey = flutterwaveSecret.startsWith("FLWSECK-") && !testKey;
-  const testMode = flutterwaveEnvironment === "test" && testKey;
-  const liveMode = flutterwaveEnvironment === "live" && liveKey &&
-    liveEnabled;
-
-  if (!testMode && !liveMode) {
-    return json(
-      {
-        error:
-          "Bank verification is disabled. Configure a matching provider environment and key; Live mode also requires explicit operator enablement.",
-      },
-      503,
-    );
-  }
-
-  const auth = createClient(supabaseUrl, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data: authData, error: authError } = await auth.auth.getUser(token);
-  if (authError || !authData.user) {
-    return json({ error: "Invalid or expired session" }, 401);
-  }
-
-  let body: unknown;
-  try {
-    const raw = await req.text();
-    if (raw.length > 2048) {
-      return json({ error: "Request is too large" }, 413);
-    }
-    body = JSON.parse(raw);
-  } catch {
-    return json({ error: "Invalid request body" }, 400);
-  }
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return json({ error: "Invalid account details" }, 400);
-  }
-
-  const input = body as Record<string, unknown>;
-  const accountNumber = typeof input.account_number === "string"
-    ? input.account_number.trim()
-    : "";
-  const accountBank = typeof input.account_bank === "string"
-    ? input.account_bank.trim()
-    : "";
-  if (!/^\d{10}$/.test(accountNumber)) {
-    return json(
-      { error: "Enter a valid 10-digit Nigerian account number" },
-      400,
-    );
-  }
-  if (!/^\d{3,6}$/.test(accountBank)) {
-    return json({ error: "Select a valid bank" }, 400);
-  }
-
-  let providerResponse: Response;
-  try {
-    providerResponse = await fetch(
-      "https://api.flutterwave.com/v3/accounts/resolve",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${flutterwaveSecret}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          account_number: accountNumber,
-          account_bank: accountBank,
-        }),
-        signal: AbortSignal.timeout(15000),
-      },
-    );
-  } catch {
-    return json(
-      {
-        error:
-          "Bank verification is temporarily unavailable. Please try again.",
-      },
-      502,
-    );
-  }
-
-  if (!providerResponse.ok) {
-    // Never return provider response bodies, which may contain internal details.
-    return json(
-      {
-        error: providerResponse.status === 429
-          ? "Too many verification attempts. Please wait and try again."
-          : "The bank could not verify these account details.",
-      },
-      providerResponse.status === 429 ? 429 : 422,
-    );
-  }
-
-  let provider: Record<string, unknown>;
-  try {
-    provider = await providerResponse.json();
-  } catch {
-    return json(
-      { error: "Invalid response from bank verification service" },
-      502,
-    );
-  }
-  const data = provider.data && typeof provider.data === "object"
-    ? provider.data as Record<string, unknown>
-    : {};
-  const returnedNumber = typeof data.account_number === "string"
-    ? data.account_number
-    : "";
-  const accountName = typeof data.account_name === "string"
-    ? data.account_name.trim()
-    : "";
-  if (
-    provider.status !== "success" || returnedNumber !== accountNumber ||
-    accountName.length < 2
-  ) {
-    return json(
-      { error: "The bank could not verify these account details." },
-      422,
-    );
-  }
-
-  return json({ account_name: accountName, account_number: returnedNumber });
+const h={"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info","Access-Control-Allow-Methods":"POST, OPTIONS"};
+const out=(d:unknown,s=200)=>new Response(JSON.stringify(d),{status:s,headers:h});
+serve(async req=>{
+ if(req.method==="OPTIONS") return new Response("ok",{headers:h});
+ if(req.method!=="POST") return out({error:"Method not allowed"},405);
+ const authorization=req.headers.get("Authorization")??"";
+ if(!authorization.startsWith("Bearer ")) return out({error:"Authentication required"},401);
+ try{
+  const url=Deno.env.get("SUPABASE_URL")!,anon=Deno.env.get("SUPABASE_ANON_KEY")!;
+  const client=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{persistSession:false}});
+  const {data,error}=await client.auth.getUser();
+  if(error||!data.user) return out({error:"Invalid session"},401);
+  const environment=Deno.env.get("FLW_ENVIRONMENT"),enabled=Deno.env.get("FLW_LIVE_ENABLED")==="true";
+  const secret=Deno.env.get("FLUTTERWAVE_SECRET_KEY")??"";
+  if(environment!=="live"||!enabled||!secret.startsWith("FLWSECK-")||secret.startsWith("FLWSECK_TEST-")) return out({error:"Flutterwave Live account lookup is not enabled on the server."},503);
+  const body=await req.json();
+  const account=String(body?.account_number??"").replace(/\s/g,"");
+  const bank=String(body?.account_bank??"").trim();
+  if(!/^\d{10}$/.test(account)||!/^\d{3,6}$/.test(bank)) return out({error:"A 10-digit account number and valid bank code are required."},400);
+  const response=await fetch("https://api.flutterwave.com/v3/accounts/resolve",{method:"POST",headers:{Authorization:"Bearer "+secret,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({account_number:account,account_bank:bank}),signal:AbortSignal.timeout(15000)});
+  const result=await response.json();
+  if(!response.ok||result?.status!=="success"||!result?.data?.account_name) return out({error:"Could not verify the bank account. Check the details and try again."},400);
+  return out({account_name:String(result.data.account_name),account_number:String(result.data.account_number??account),bank:String(result.data.bank_name??"")});
+ }catch(_){return out({error:"Account lookup failed. Please try again."},500);}
 });
