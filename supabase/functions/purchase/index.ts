@@ -147,7 +147,7 @@ serve(async (req) => {
       }
       const result = await flwRequest(
         "/bill-items/" + encodeURIComponent(item) +
-            "/validate?customer=" + encodeURIComponent(customer),
+          "/validate?customer=" + encodeURIComponent(customer),
         secret,
       );
       const data = result.data ?? {};
