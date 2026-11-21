@@ -18,7 +18,11 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-async function validSignature(rawBody: string, secretHash: string, req: Request) {
+async function validSignature(
+  rawBody: string,
+  secretHash: string,
+  req: Request,
+) {
   const signature = req.headers.get("flutterwave-signature") ?? "";
   if (signature) {
     const key = await crypto.subtle.importKey(
