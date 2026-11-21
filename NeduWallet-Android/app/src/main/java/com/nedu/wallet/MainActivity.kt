@@ -188,7 +188,9 @@ fun NeduApp() {
                     },
                     onCreate = { authError = null; authNotice = null; screen = "signup" }
                 )
-                "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it }, onWalletClick = { selectedWallet = it; screen = "wallet-detail" })
+                "home" -> WalletHome(wallets.filterNot { it.isCrypto }, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it }, onWalletClick = { selectedWallet = it; screen = "wallet-detail" })
+                "bills" -> BillsScreen(onNavigate = { screen = it }, onBack = { screen = "home" })
+                "crypto" -> CryptoWalletScreen(onBack = { screen = "home" })
                 "wallet-detail" -> selectedWallet?.let { WalletDetailScreen(it, hideBalance) { screen = "home" } } ?: run { screen = "home" }
                 "send", "receive", "swap", "transfer" -> ActionFlowScreen(screen, wallets) { screen = "home" }
                 "support-security-2fa", "support-backup-recovery", "support-notifications", "support-help-support", "support-terms-privacy" ->
@@ -440,17 +442,22 @@ fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -
                     ActionTile("↑", "Send", Modifier.weight(1f)) { onNavigate("send") }
                     ActionTile("↓", "Receive", Modifier.weight(1f)) { onNavigate("receive") }
                     ActionTile("⇄", "Swap", Modifier.weight(1f)) { onNavigate("swap") }
-                    ActionTile("↗", "Transfer", Modifier.weight(1f)) { onNavigate("transfer") }
+                    ActionTile("▣", "Bills", Modifier.weight(1f)) { onNavigate("bills") }
+                }
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = { onNavigate("crypto") }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
+                    Icon(Icons.Default.AccountBalanceWallet, null); Spacer(Modifier.width(8.dp)); Text("Open Non-Custodial Crypto Wallets")
                 }
                 Spacer(Modifier.height(23.dp))
                 Text("My Wallets", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
                 Text("Tap any wallet to view its balance and account details.", color = Muted, fontSize = 12.sp)
                 Spacer(Modifier.height(9.dp))
             }
-            if (wallets.isEmpty()) {
-                item { Text("No wallets were returned for this account.", color = Muted, modifier = Modifier.padding(vertical = 20.dp)) }
+            val fiatWallets = wallets.filterNot { it.isCrypto }
+            if (fiatWallets.isEmpty()) {
+                item { Text("No fiat wallets were returned for this account.", color = Muted, modifier = Modifier.padding(vertical = 20.dp)) }
             } else {
-                wallets.forEach { wallet ->
+                fiatWallets.forEach { wallet ->
                     item {
                         WalletRow(
                             flag = currencyMark(wallet.code), name = wallet.name, code = wallet.code,
@@ -796,6 +803,8 @@ fun SupportDetailScreen(topic: String, onBack: () -> Unit) {
 fun BottomBar(selected: String, onNavigate: (String) -> Unit) {
     NavigationBar(containerColor = Color(0xFFFAFAFC)) {
         NavigationBarItem(selected == "home", onClick = { onNavigate("home") }, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Home") })
+        NavigationBarItem(selected == "bills", onClick = { onNavigate("bills") }, icon = { Icon(Icons.Default.ReceiptLong, null) }, label = { Text("Bills") })
+        NavigationBarItem(selected == "crypto", onClick = { onNavigate("crypto") }, icon = { Icon(Icons.Default.CurrencyBitcoin, null) }, label = { Text("Crypto") })
         NavigationBarItem(selected == "card", onClick = { onNavigate("card") }, icon = { Icon(Icons.Default.CreditCard, null) }, label = { Text("Card") })
         NavigationBarItem(selected == "profile", onClick = { onNavigate("profile") }, icon = { Icon(Icons.Default.Person, null) }, label = { Text("Profile") })
     }
