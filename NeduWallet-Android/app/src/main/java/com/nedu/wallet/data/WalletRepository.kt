@@ -113,6 +113,55 @@ class WalletRepository(
         }
     }
 
+    /** Sends identity details and a selected selfie only to the authenticated server function. */
+    suspend fun verifyIdentity(idType: String, idNumber: String, selfieDataUri: String): String =
+        withContext(Dispatchers.IO) {
+            require(idType in setOf("bvn", "nin")) { "Choose BVN or NIN." }
+            require(idNumber.filterNot { it.isWhitespace() }.matches(Regex("\\d{11}"))) {
+                "Enter a valid 11-digit identity number."
+            }
+            require(selfieDataUri.startsWith("data:image/")) { "Choose a selfie first." }
+            val session = client.auth.currentSessionOrNull()
+                ?: throw IllegalStateException("Please sign in again.")
+            val endpoint = BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/verify-identity"
+            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 20_000
+                readTimeout = 35_000
+                doOutput = true
+                setRequestProperty("Authorization", "Bearer ${session.accessToken}")
+                setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                setRequestProperty("Content-Type", "application/json")
+            }
+            try {
+                val payload = JSONObject().apply {
+                    put("id_type", idType)
+                    put("id_number", idNumber.filterNot { it.isWhitespace() })
+                    put("selfie_base64", selfieDataUri)
+                }.toString()
+                connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val bodyText = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val body = runCatching { JSONObject(bodyText) }.getOrNull()
+                if (status !in 200..299) {
+                    throw IllegalStateException(
+                        body?.optString("error")?.takeIf { it.isNotBlank() }
+                            ?: "Identity verification could not be completed. Please try again."
+                    )
+                }
+                if (!body?.optBoolean("verified", false)!!) {
+                    throw IllegalStateException(
+                        body.optString("error").takeIf { it.isNotBlank() }
+                            ?: "Your identity details could not be verified."
+                    )
+                }
+                body.optString("message").ifBlank { "Identity verified." }
+            } finally {
+                connection.disconnect()
+            }
+        }
+
     suspend fun uploadMyAvatar(bytes: ByteArray, mimeType: String): String {
         require(bytes.isNotEmpty()) { "Choose a profile photo first." }
         require(bytes.size <= 5 * 1024 * 1024) { "Choose an image smaller than 5 MB." }
