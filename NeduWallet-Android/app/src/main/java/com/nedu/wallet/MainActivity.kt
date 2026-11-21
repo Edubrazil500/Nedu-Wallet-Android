@@ -302,15 +302,27 @@ fun LoginScreen(email: String, onEmail: (String) -> Unit, password: String, onPa
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(value = password, onValueChange = onPassword, modifier = Modifier.fillMaxWidth(),
             textStyle = TextStyle(color = Ink, fontSize = 16.sp),
-            placeholder = { Text("Password", color = Color.LightGray) },
+            placeholder = { Text("Enter your password", color = Muted) },
             shape = RoundedCornerShape(18.dp), singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = { IconButton(onClick = { showPassword = !showPassword }) {
                 Icon(if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = Muted)
             } },
-            colors = fieldColors())
-        Spacer(Modifier.height(12.dp))
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedContainerColor = Color(0xFFEDECF1),
+                focusedContainerColor = Color(0xFFFFF1F2),
+                unfocusedBorderColor = Color(0xFF77727F),
+                focusedBorderColor = NeduRed,
+                unfocusedTextColor = Color(0xFF111111),
+                focusedTextColor = Color(0xFF111111),
+                cursorColor = NeduRed,
+                unfocusedPlaceholderColor = Muted,
+                focusedPlaceholderColor = Muted
+            ))
+        Spacer(Modifier.height(6.dp))
+        Text("Tap the eye icon to show or hide your password.", color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
         Text("Password must have capital, small, number and character.", color = Muted, fontSize = 13.sp)
         if (errorMessage != null) {
             Text(errorMessage, color = NeduRed, fontSize = 13.sp, modifier = Modifier.fillMaxWidth())
