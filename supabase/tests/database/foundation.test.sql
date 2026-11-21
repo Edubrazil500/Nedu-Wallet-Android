@@ -3,7 +3,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(35);
+select plan(40);
 
 -- Simulate two Supabase Auth signups. The auth.users trigger must provision
 -- each profile, NGN wallet, and wallet ledger account atomically.
@@ -236,6 +236,19 @@ select is(
   'processing:reserved',
   'Reservation marks the purchase as processing and reserved'
 );
+select ok(
+  (select wallet_transaction_id is not null
+   from public.purchase_transactions
+   where id = '20000000-0000-4000-8000-000000000001'),
+  'Reservation links a wallet transaction history row'
+);
+select is(
+  (select status from public.transactions
+   where id = (select wallet_transaction_id from public.purchase_transactions
+     where id = '20000000-0000-4000-8000-000000000001')),
+  'pending',
+  'Wallet history shows the bill payment as pending while provider confirms'
+);
 select is(
   public.settle_wallet_purchase(
     '20000000-0000-4000-8000-000000000001',
@@ -251,6 +264,13 @@ select is(
    where id = '20000000-0000-4000-8000-000000000001'),
   'review:reserved',
   'Pending provider result moves the purchase to review'
+);
+select is(
+  (select status from public.transactions
+   where id = (select wallet_transaction_id from public.purchase_transactions
+     where id = '20000000-0000-4000-8000-000000000001')),
+  'pending',
+  'Pending provider result keeps wallet history pending'
 );
 select is(
   (select balance from public.wallets
@@ -272,6 +292,13 @@ select is(
    where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
   5000::numeric,
   'Failed purchase restores the exact reserved amount'
+);
+select is(
+  (select status from public.transactions
+   where id = (select wallet_transaction_id from public.purchase_transactions
+     where id = '20000000-0000-4000-8000-000000000001')),
+  'refunded',
+  'Wallet history records the confirmed bill refund'
 );
 select is(
   public.settle_wallet_purchase(
@@ -319,6 +346,13 @@ select is(
    where id = '20000000-0000-4000-8000-000000000002'),
   'success:settled',
   'Successful purchase is marked settled'
+);
+select is(
+  (select status from public.transactions
+   where id = (select wallet_transaction_id from public.purchase_transactions
+     where id = '20000000-0000-4000-8000-000000000002')),
+  'completed',
+  'Wallet history records the confirmed successful bill payment'
 );
 select is(
   public.settle_wallet_purchase(
