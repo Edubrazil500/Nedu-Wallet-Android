@@ -2,6 +2,8 @@ package com.nedu.wallet
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,6 +20,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -35,6 +40,7 @@ import com.nedu.wallet.data.WalletBalance
 import com.nedu.wallet.data.WalletRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import coil.compose.AsyncImage
 
 private val NeduRed = Color(0xFFC91D27)
 private val DeepRed = Color(0xFF98151F)
@@ -70,6 +76,27 @@ fun NeduApp() {
     var selectedWallet by remember { mutableStateOf<WalletBalance?>(null) }
     var profile by remember { mutableStateOf<AccountProfile?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    authError = null
+                    authNotice = null
+                    val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw IllegalStateException("Could not read the selected photo.")
+                    val repository = walletRepository
+                        ?: throw IllegalStateException("Supabase is not configured in this build.")
+                    repository.uploadMyAvatar(bytes, mimeType)
+                    profile = repository.loadMyProfile()
+                    authNotice = "Your profile photo has been updated."
+                } catch (error: Exception) {
+                    authError = error.message ?: "Unable to upload your profile photo."
+                }
+            }
+        }
+    }
     val walletRepository = remember {
         if (SupabaseClientProvider.isConfigured) WalletRepository() else null
     }
@@ -194,6 +221,9 @@ fun NeduApp() {
                     profile = profile,
                     onNavigate = { screen = it },
                     onEditProfile = { authError = null; screen = "edit-profile" },
+                    onPickPhoto = { photoPicker.launch("image/*") },
+                    photoMessage = authNotice,
+                    errorMessage = authError,
                     onSignOut = {
                         val repository = walletRepository
                         if (repository != null) {
@@ -511,7 +541,7 @@ fun CardScreen(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onEditProfile: () -> Unit, onSignOut: () -> Unit) {
+fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onEditProfile: () -> Unit, onPickPhoto: () -> Unit, photoMessage: String?, errorMessage: String?, onSignOut: () -> Unit) {
     Scaffold(bottomBar = { BottomBar("profile", onNavigate) }) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
             Spacer(Modifier.height(24.dp))
@@ -520,14 +550,32 @@ fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onEdit
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = DeepRed)) {
                 Column(Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(NeduRed, DeepRed))).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     val initials = profile?.name.orEmpty().trim().split(" ").filter { it.isNotBlank() }.take(2).map { it.first().uppercaseChar() }.joinToString("")
-                    Box(Modifier.size(92.dp).background(Color.White, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
-                        Text(initials.ifBlank { "NW" }, color = DeepRed, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    Box(Modifier.size(92.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
+                        if (!profile?.avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = profile?.avatarUrl,
+                                contentDescription = "Customer profile photo",
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                        } else {
+                            Text(initials.ifBlank { "NW" }, color = DeepRed, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(profile?.name?.takeIf { it.isNotBlank() } ?: "Nedu Wallet Customer", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     Text("Nedu Wallet account", color = Color.White.copy(.82f), fontSize = 13.sp)
                     Spacer(Modifier.height(10.dp))
-                    Text("A profile photo can be added after secure photo storage is connected.", color = Color.White.copy(.82f), fontSize = 11.sp, textAlign = TextAlign.Center)
+                    OutlinedButton(onClick = onPickPhoto, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Change profile photo")
+                    }
+                    if (!photoMessage.isNullOrBlank()) {
+                        Text(photoMessage, color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    }
+                    if (!errorMessage.isNullOrBlank()) {
+                        Text(errorMessage, color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    }
                 }
             }
             Spacer(Modifier.height(20.dp))
