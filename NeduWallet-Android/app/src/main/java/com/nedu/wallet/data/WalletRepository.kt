@@ -201,7 +201,7 @@ private data class ProfileRow(
     val email: String,
     val phone: String? = null,
     val country: String? = null,
-    val avatarUrl: String? = null,
+    @SerialName("avatar_url") val avatarUrl: String? = null,
 )
 
 data class AccountProfile(
@@ -214,7 +214,7 @@ data class AccountProfile(
 )
 
 @Serializable
-private data class AvatarUpdate(val avatarUrl: String)
+private data class AvatarUpdate(@SerialName("avatar_url") val avatarUrl: String)
 
 @Serializable
 private data class WalletRow(
