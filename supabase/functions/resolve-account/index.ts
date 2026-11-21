@@ -24,8 +24,22 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const flutterwaveSecret = Deno.env.get("FLW_SECRET_KEY");
+  const flutterwaveEnvironment = Deno.env.get("FLW_ENVIRONMENT")?.trim().toLowerCase();
+
   if (!supabaseUrl || !anonKey || !flutterwaveSecret) {
     return json({ error: "Account verification service is not configured" }, 503);
+  }
+
+  // This feature branch is deliberately sandbox-only. A live secret must never
+  // be used by development or staging code. Live-provider support requires a
+  // separately reviewed production release, not just an environment toggle.
+  if (
+    flutterwaveEnvironment !== "test" ||
+    !flutterwaveSecret.startsWith("FLWSECK_TEST-")
+  ) {
+    return json({
+      error: "Bank verification is disabled until a Flutterwave Test key is configured.",
+    }, 503);
   }
 
   const auth = createClient(supabaseUrl, anonKey, {
