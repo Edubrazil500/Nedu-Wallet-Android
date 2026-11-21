@@ -374,7 +374,8 @@ fun SignupScreen(
             value = password,
             onValueChange = onPassword,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Password", color = Color.LightGray) },
+            textStyle = TextStyle(color = Ink, fontSize = 16.sp),
+            placeholder = { Text("Enter a password", color = Muted) },
             shape = RoundedCornerShape(18.dp),
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
@@ -710,17 +711,24 @@ fun PrimaryButton(label: String, onClick: () -> Unit, enabled: Boolean = true) {
 
 @Composable
 fun SoftField(value: String, onValueChange: (String) -> Unit, hint: String, keyboard: KeyboardType = KeyboardType.Text) {
-    OutlinedTextField(value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(),
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
         textStyle = TextStyle(color = Ink, fontSize = 16.sp),
-        placeholder = { Text(hint, color = Muted) }, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboard), shape = RoundedCornerShape(18.dp), colors = fieldColors())
+        placeholder = { Text(hint, color = Muted) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+        shape = RoundedCornerShape(18.dp),
+        colors = fieldColors()
+    )
 }
 
 @Composable
 fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    unfocusedContainerColor = Color.White,
-    focusedContainerColor = Color.White,
-    unfocusedBorderColor = Color(0xFFE3E3E8),
+    unfocusedContainerColor = Color(0xFFF7F6F8),
+    focusedContainerColor = Color(0xFFFFF8F8),
+    unfocusedBorderColor = Color(0xFFB8B6C2),
     focusedBorderColor = NeduRed,
     unfocusedTextColor = Ink,
     focusedTextColor = Ink,
