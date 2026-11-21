@@ -40,3 +40,6 @@ verify_jwt = false
 
 [functions.profile-update]
 verify_jwt = true
+
+[functions.resolve-account]
+verify_jwt = true
