@@ -65,7 +65,8 @@ class WalletRepository(
         // session. Without confirmation it returns null and creates a session.
         // Check both signals so an older persisted session is not mistaken
         // for a newly authenticated signup.
-        return signupUser == null && client.auth.currentSessionOrNull() != null
+        val session = client.auth.currentSessionOrNull()
+        return signupUser?.id != null && session?.user?.id == signupUser.id
     }
 
     /**
