@@ -2,25 +2,21 @@ name: Build Configured Android APK
 
 on:
   workflow_dispatch:
-    inputs:
-      confirm_build:
-        description: "Type BUILD_CONFIGURED_APK to build using the configured Supabase project"
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 jobs:
   build:
-    if: ${{ inputs.confirm_build == 'BUILD_CONFIGURED_APK' }}
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
     steps:
-      - name: Check out selected source branch
+      - name: Check out Android development branch
         uses: actions/checkout@v4
+        with:
+          ref: feature/functional-account-backend
 
       - name: Validate public Supabase app configuration
         shell: bash
