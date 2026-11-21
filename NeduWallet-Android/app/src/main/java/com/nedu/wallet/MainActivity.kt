@@ -77,6 +77,9 @@ fun NeduApp() {
     var profile by remember { mutableStateOf<AccountProfile?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val walletRepository = remember {
+        if (SupabaseClientProvider.isConfigured) WalletRepository() else null
+    }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             scope.launch {
@@ -96,9 +99,6 @@ fun NeduApp() {
                 }
             }
         }
-    }
-    val walletRepository = remember {
-        if (SupabaseClientProvider.isConfigured) WalletRepository() else null
     }
 
     MaterialTheme(colorScheme = lightColorScheme(primary = NeduRed, onPrimary = Color.White, background = Color.White)) {
