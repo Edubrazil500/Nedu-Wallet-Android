@@ -1,40 +1,18 @@
-
-name: Build Nedu Wallet APK
+name: Deprecated APK workflow - use configured build
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  notice:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Build APK
-        run: gradle assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Nedu-Wallet-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Explain correct build workflow
+        run: |
+          echo "This old workflow is intentionally retired."
+          echo "Use the 'Build Configured Android APK' workflow instead."
+          echo "That workflow builds from NeduWallet-Android and injects the GitHub Supabase URL and publishable-key secrets safely."
+          exit 1
