@@ -924,7 +924,7 @@ fun IdentityVerificationScreen(
         OutlinedButton(onClick = onChooseSelfie, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
             Icon(Icons.Default.CameraAlt, null)
             Spacer(Modifier.width(8.dp))
-            Text(if (hasSelfie) "Selfie selected · Choose another" else "Choose selfie photo")
+            Text(if (hasSelfie) "Selfie captured · Take another" else "Take selfie with camera")
         }
         if (message != null) Text(message, color = Color(0xFF247A42), fontSize = 13.sp)
         if (errorMessage != null) Text(errorMessage, color = NeduRed, fontSize = 13.sp)
