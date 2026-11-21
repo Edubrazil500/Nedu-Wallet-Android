@@ -190,7 +190,7 @@ fun NeduApp() {
                 )
                 "home" -> WalletHome(wallets.filterNot { it.isCrypto }, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it }, onWalletClick = { selectedWallet = it; screen = "wallet-detail" })
                 "bills" -> BillsScreen(onNavigate = { screen = it }, onBack = { screen = "home" })
-                "crypto" -> CryptoWalletScreen(onBack = { screen = "home" })
+                "crypto" -> CryptoWalletScreen(onNavigate = { screen = it }, onBack = { screen = "home" })
                 "wallet-detail" -> selectedWallet?.let { WalletDetailScreen(it, hideBalance) { screen = "home" } } ?: run { screen = "home" }
                 "send", "receive", "swap", "transfer" -> ActionFlowScreen(screen, wallets) { screen = "home" }
                 "support-security-2fa", "support-backup-recovery", "support-notifications", "support-help-support", "support-terms-privacy" ->
@@ -833,8 +833,8 @@ fun BillsScreen(onNavigate: (String) -> Unit, onBack: () -> Unit) {
 }
 
 @Composable
-fun CryptoWalletScreen(onBack: () -> Unit) {
-    Scaffold(bottomBar = { BottomBar("crypto") { } }) { padding ->
+fun CryptoWalletScreen(onNavigate: (String) -> Unit, onBack: () -> Unit) {
+    Scaffold(bottomBar = { BottomBar("crypto", onNavigate) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(22.dp)) {
             TextButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = DeepRed); Text("Back to Home", color = DeepRed) }
             Text("Crypto Wallets", fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Ink)
