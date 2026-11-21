@@ -162,10 +162,10 @@ fun NeduApp() {
                                         profile = repository.loadMyProfile()
                                             ?: throw IllegalStateException("Your account was created, but its profile is not available yet. Please contact Nedu Wallet support.")
                                         wallets = repository.loadMyWallets()
-                                        if (wallets.size != 7) {
-                                            throw IllegalStateException("Your account was created, but all seven wallets were not returned. Please contact Nedu Wallet support before using the account.")
+                                        if (wallets.count { it.isCrypto } != 2) {
+                                            throw IllegalStateException("Your account was created, but its two crypto wallet records are not ready. Please contact Nedu Wallet support.")
                                         }
-                                        screen = "home"
+                                        screen = if (wallets.any { !it.isCrypto }) "home" else "identity-verification"
                                     } else {
                                         password = ""
                                         authNotice = "Your account has been created. Please check your email and confirm your address before signing in."
@@ -201,7 +201,7 @@ fun NeduApp() {
                                     repository.signIn(email, password)
                                     profile = repository.loadMyProfile()
                                     wallets = repository.loadMyWallets()
-                                    screen = "home"
+                                    screen = if (wallets.any { !it.isCrypto }) "home" else "identity-verification"
                                 } catch (error: Exception) {
                                     authError = error.message ?: "Unable to sign in. Check your connection and credentials."
                                 } finally {
@@ -242,9 +242,16 @@ fun NeduApp() {
                                 identityError = null
                                 identityMessage = null
                                 try {
-                                    identityMessage = repository.verifyIdentity(identityType, identityNumber, identitySelfie!!)
+                                    val resultMessage = repository.verifyIdentity(identityType, identityNumber, identitySelfie!!)
+                                    identityMessage = resultMessage
                                     identityNumber = ""
                                     identitySelfie = null
+                                    wallets = repository.loadMyWallets()
+                                    profile = repository.loadMyProfile()
+                                    if (wallets.any { !it.isCrypto }) {
+                                        authNotice = resultMessage
+                                        screen = "home"
+                                    }
                                 } catch (error: Exception) {
                                     identityError = error.message ?: "Identity verification failed. Please try again."
                                 } finally {
