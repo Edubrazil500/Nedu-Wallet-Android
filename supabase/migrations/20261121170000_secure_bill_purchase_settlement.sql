@@ -1,3 +1,32 @@
+create table if not exists public.purchase_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null check (type in ('bills', 'airtime', 'esim', 'gift_cards')),
+  category text,
+  provider text not null,
+  provider_code text,
+  phone_number text,
+  account_number text,
+  country text,
+  brand text,
+  plan text,
+  amount numeric not null check (amount > 0),
+  currency text not null default 'NGN',
+  pay_from_wallet text not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'processing', 'success', 'failed', 'refunded', 'review')),
+  provider_reference text,
+  provider_status text,
+  delivery_code text,
+  delivery_qr_url text,
+  delivery_pin text,
+  error_message text,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+
 alter table public.purchase_transactions
   add column if not exists idempotency_key text,
   add column if not exists wallet_debit_status text not null default 'not_reserved',
@@ -6,13 +35,34 @@ alter table public.purchase_transactions
   add column if not exists refunded_at timestamptz,
   add column if not exists provider_payload jsonb not null default '{}'::jsonb;
 
+alter table public.purchase_transactions
+  drop constraint if exists purchase_transactions_status_check;
+alter table public.purchase_transactions
+  add constraint purchase_transactions_status_check
+  check (status = any (array['pending','processing','success','failed','refunded','review']::text[]));
+
+create index if not exists idx_purchase_user
+  on public.purchase_transactions(user_id);
+create index if not exists idx_purchase_status
+  on public.purchase_transactions(status);
+create index if not exists idx_purchase_type
+  on public.purchase_transactions(type);
+create index if not exists idx_purchase_created
+  on public.purchase_transactions(created_at desc);
 create unique index if not exists purchase_transactions_user_idempotency_uidx
   on public.purchase_transactions(user_id, idempotency_key)
   where idempotency_key is not null;
-
 create index if not exists purchase_transactions_pending_reconcile_idx
   on public.purchase_transactions(status, reserved_at)
   where wallet_debit_status = 'reserved';
+
+alter table public.purchase_transactions enable row level security;
+drop policy if exists "Users can view own purchases" on public.purchase_transactions;
+create policy "Users can view own purchases"
+  on public.purchase_transactions
+  for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
 
 create or replace function public.reserve_wallet_purchase(
   p_purchase_id uuid,
