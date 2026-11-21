@@ -5,6 +5,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.storage.Storage
 
 /**
  * Shared Supabase client for the existing Nedu Wallet project.
@@ -29,6 +30,7 @@ object SupabaseClientProvider {
         ) {
             install(Auth)
             install(Postgrest)
+            install(Storage)
         }
     }
 }
