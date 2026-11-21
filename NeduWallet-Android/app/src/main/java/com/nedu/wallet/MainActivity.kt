@@ -478,22 +478,34 @@ fun WalletDetailScreen(wallet: WalletBalance, hidden: Boolean, onBack: () -> Uni
 @Composable
 fun CardScreen(onNavigate: (String) -> Unit) {
     Scaffold(bottomBar = { BottomBar("card", onNavigate) }) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).padding(22.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(Icons.Default.CreditCard, null, tint = NeduRed, modifier = Modifier.size(56.dp))
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(22.dp)) {
             Spacer(Modifier.height(18.dp))
-            Text("Nedu Card", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "Card details and controls are not connected yet. We are verifying which existing card records the iOS app uses before displaying or changing card information here.",
-                color = Muted,
-                textAlign = TextAlign.Center,
-                fontSize = 15.sp,
-                lineHeight = 22.sp
-            )
+            Text("Nedu Card", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Spacer(Modifier.height(20.dp))
+            Card(Modifier.fillMaxWidth().height(220.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = DeepRed)) {
+                Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(NeduRed, DeepRed, Color(0xFF6F1019)))).padding(22.dp)) {
+                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Nedu", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                            Text("CARD", color = Color.White.copy(.85f), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column {
+                            Text("••••  ••••  ••••  ••••", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(12.dp))
+                            Text("CARD NOT ISSUED", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Your card will appear here after a verified issuer integration.", color = Color.White.copy(.8f), fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
+                Column(Modifier.padding(18.dp)) {
+                    Text("Card services", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Spacer(Modifier.height(8.dp))
+                    Text("A real card number, expiry date, CVV, Apple Pay or card controls will only be shown after a licensed card issuer provisions a card for your account.", color = Muted, fontSize = 14.sp, lineHeight = 20.sp)
+                }
+            }
         }
     }
 }
