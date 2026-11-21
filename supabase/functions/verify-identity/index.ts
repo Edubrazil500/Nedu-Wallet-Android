@@ -4,7 +4,8 @@ const headers = {
   "Content-Type": "application/json",
   "Cache-Control": "no-store",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Headers":
+    "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -26,11 +27,15 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const premblyKey = Deno.env.get("PREMBLY_SECRET_KEY");
   if (!supabaseUrl || !anonKey || !serviceKey) {
-    return reply({ error: "Identity verification is temporarily unavailable." }, 503);
+    return reply(
+      { error: "Identity verification is temporarily unavailable." },
+      503,
+    );
   }
   if (!premblyKey) {
     return reply({
-      error: "Prembly is selected but its server API key has not been configured. Verification is not available yet.",
+      error:
+        "Prembly is selected but its server API key has not been configured. Verification is not available yet.",
       code: "PREMBLY_NOT_CONFIGURED",
     }, 503);
   }
@@ -40,8 +45,11 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: authData, error: authError } = await userClient.auth.getUser();
-    if (authError || !authData.user) return reply({ error: "Invalid session." }, 401);
+    const { data: authData, error: authError } = await userClient.auth
+      .getUser();
+    if (authError || !authData.user) {
+      return reply({ error: "Invalid session." }, 401);
+    }
 
     const body = await req.json();
     const idType = String(body?.id_type ?? "").toLowerCase();
@@ -57,7 +65,9 @@ Deno.serve(async (req: Request) => {
       image.length < 100 || image.length > 8_000_000 ||
       !/^data:image\/(jpeg|jpg|png);base64,[A-Za-z0-9+/=\r\n]+$/.test(image)
     ) {
-      return reply({ error: "Upload a clear JPG or PNG selfie (maximum 6 MB)." }, 400);
+      return reply({
+        error: "Upload a clear JPG or PNG selfie (maximum 6 MB).",
+      }, 400);
     }
 
     const endpoint = idType === "bvn"
@@ -80,14 +90,18 @@ Deno.serve(async (req: Request) => {
         signal: AbortSignal.timeout(25000),
       });
     } catch {
-      return reply({ error: "Prembly could not be reached. Please try again later." }, 503);
+      return reply({
+        error: "Prembly could not be reached. Please try again later.",
+      }, 503);
     }
 
     let result: any;
     try {
       result = await providerResponse.json();
     } catch {
-      return reply({ error: "Prembly returned an unreadable response. Please try again." }, 502);
+      return reply({
+        error: "Prembly returned an unreadable response. Please try again.",
+      }, 502);
     }
     if (!providerResponse.ok) {
       // Do not expose provider payloads: they can contain identity data.
@@ -100,10 +114,11 @@ Deno.serve(async (req: Request) => {
 
     const data = result?.data ?? {};
     const face = data?.face_data ?? data?.nin_data?.face_data ?? {};
-    const registryCode = String(result?.response_code ?? data?.response_code ?? "");
+    const registryCode = String(
+      result?.response_code ?? data?.response_code ?? "",
+    );
     const faceCode = String(face?.response_code ?? "");
-    const verified =
-      result?.status === true &&
+    const verified = result?.status === true &&
       registryCode === "00" &&
       face?.status === true &&
       faceCode === "00";
@@ -112,7 +127,8 @@ Deno.serve(async (req: Request) => {
       return reply({
         verified: false,
         id_type: idType,
-        error: "We could not verify this identity and selfie match. Check your details and try again.",
+        error:
+          "We could not verify this identity and selfie match. Check your details and try again.",
       }, 200);
     }
 
@@ -130,7 +146,9 @@ Deno.serve(async (req: Request) => {
       .eq("id", authData.user.id)
       .single();
     if (profileError || !profile) {
-      return reply({ error: "Your wallet profile could not be updated. Contact support." }, 500);
+      return reply({
+        error: "Your wallet profile could not be updated. Contact support.",
+      }, 500);
     }
 
     const bvnDone = idType === "bvn" || Boolean(profile.kyc_bvn_verified_at);
@@ -147,7 +165,10 @@ Deno.serve(async (req: Request) => {
       .update(finalUpdate)
       .eq("id", authData.user.id);
     if (saveError) {
-      return reply({ error: "The identity check passed, but saving its status failed. Contact support before retrying." }, 500);
+      return reply({
+        error:
+          "The identity check passed, but saving its status failed. Contact support before retrying.",
+      }, 500);
     }
 
     return reply({
@@ -161,6 +182,8 @@ Deno.serve(async (req: Request) => {
           : "NIN verified. Complete BVN verification to unlock fiat wallet services."),
     });
   } catch {
-    return reply({ error: "Identity verification failed. Please try again later." }, 500);
+    return reply({
+      error: "Identity verification failed. Please try again later.",
+    }, 500);
   }
 });
