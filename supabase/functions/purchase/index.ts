@@ -349,8 +349,7 @@ serve(async (req) => {
       p_amount: amount,
     });
     if (reserveError) {
-      const duplicateReservation =
-        reserveError.code === "23505" ||
+      const duplicateReservation = reserveError.code === "23505" ||
         reserveError.message.includes(
           "purchase_transactions_one_active_bill_per_account_uidx",
         );
