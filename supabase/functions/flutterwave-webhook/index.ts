@@ -120,7 +120,8 @@ serve(async (req) => {
       return json({
         received: true,
         pending_reconciliation: true,
-        reason: "Missing or invalid transaction reference or receiving-account metadata",
+        reason:
+          "Missing or invalid transaction reference or receiving-account metadata",
       });
     }
 
