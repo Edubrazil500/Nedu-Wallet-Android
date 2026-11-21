@@ -92,6 +92,15 @@ serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    if (action === "status") {
+      const enabled =
+        Deno.env.get("FLW_ENVIRONMENT") === "live" &&
+        Deno.env.get("FLW_LIVE_ENABLED") === "true" &&
+        Deno.env.get("FLW_BILLS_LIVE_ENABLED") === "true" &&
+        Deno.env.get("FLW_BILLS_IP_WHITELIST_CONFIRMED") === "true";
+      return reply({ purchase_enabled: enabled, currency: "NGN" });
+    }
+
     // Provider catalog is read-only and never debits a wallet.
     if (action === "categories") {
       const result = await flwRequest(

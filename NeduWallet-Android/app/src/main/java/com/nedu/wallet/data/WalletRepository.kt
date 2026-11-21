@@ -162,6 +162,119 @@ class WalletRepository(
             }
         }
 
+    suspend fun loadBillCategories(): List<BillCategory> {
+        val body = callPurchaseFunction(JSONObject().put("action", "categories"))
+        val rows = body.optJSONArray("categories") ?: org.json.JSONArray()
+        return (0 until rows.length()).mapNotNull { index ->
+            val item = rows.optJSONObject(index) ?: return@mapNotNull null
+            val code = item.optString("category_code").ifBlank { item.optString("code") }
+            val name = item.optString("name").ifBlank { item.optString("category_name") }
+            if (code.isBlank() || name.isBlank()) null else BillCategory(code, name)
+        }
+    }
+
+    suspend fun loadBillers(categoryCode: String): List<BillProvider> {
+        val body = callPurchaseFunction(
+            JSONObject().put("action", "billers").put("category_code", categoryCode)
+        )
+        val rows = body.optJSONArray("billers") ?: org.json.JSONArray()
+        return (0 until rows.length()).mapNotNull { index ->
+            val item = rows.optJSONObject(index) ?: return@mapNotNull null
+            val code = item.optString("biller_code")
+            val name = item.optString("name").ifBlank { item.optString("biller_name") }
+            if (code.isBlank() || name.isBlank()) null else BillProvider(code, name)
+        }
+    }
+
+    suspend fun loadBillItems(billerCode: String): List<BillItem> {
+        val body = callPurchaseFunction(
+            JSONObject().put("action", "items").put("biller_code", billerCode)
+        )
+        val rows = body.optJSONArray("items") ?: org.json.JSONArray()
+        return (0 until rows.length()).mapNotNull { index ->
+            val item = rows.optJSONObject(index) ?: return@mapNotNull null
+            val code = item.optString("item_code")
+            val name = item.optString("name").ifBlank { item.optString("biller_name") }
+            val amount = item.optString("amount", "0")
+            val price = amount.toBigDecimalOrNull()
+            if (code.isBlank() || name.isBlank() || price == null || price.signum() <= 0) {
+                null
+            } else {
+                BillItem(
+                    code = code,
+                    name = name,
+                    amount = amount,
+                    isAirtime = item.optBoolean("is_airtime", false),
+                    isResolvable = item.optBoolean("is_resolvable", false),
+                )
+            }
+        }
+    }
+
+    suspend fun isBillPurchaseEnabled(): Boolean =
+        callPurchaseFunction(JSONObject().put("action", "status"))
+            .optBoolean("purchase_enabled", false)
+
+    suspend fun validateBillCustomer(itemCode: String, customerId: String): JSONObject =
+        callPurchaseFunction(
+            JSONObject()
+                .put("action", "validate")
+                .put("item_code", itemCode)
+                .put("customer_id", customerId.trim())
+        )
+
+    suspend fun purchaseBill(
+        categoryCode: String,
+        billerCode: String,
+        itemCode: String,
+        customerId: String,
+        amount: String,
+        idempotencyKey: String = UUID.randomUUID().toString(),
+    ): JSONObject = callPurchaseFunction(
+        JSONObject()
+            .put("action", "buy")
+            .put("category_code", categoryCode)
+            .put("biller_code", billerCode)
+            .put("item_code", itemCode)
+            .put("customer_id", customerId.trim())
+            .put("amount", amount)
+            .put("idempotency_key", idempotencyKey)
+    )
+
+    private suspend fun callPurchaseFunction(payload: JSONObject): JSONObject =
+        withContext(Dispatchers.IO) {
+            val session = client.auth.currentSessionOrNull()
+                ?: throw IllegalStateException("Please sign in again.")
+            val endpoint = BuildConfig.SUPABASE_URL.trimEnd('/') + "/functions/v1/purchase"
+            val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15_000
+                readTimeout = 25_000
+                doOutput = true
+                setRequestProperty("Authorization", "Bearer ${session.accessToken}")
+                setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+                setRequestProperty("Content-Type", "application/json")
+            }
+            try {
+                connection.outputStream.use {
+                    it.write(payload.toString().toByteArray(Charsets.UTF_8))
+                }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val body = runCatching { JSONObject(text) }.getOrNull()
+                if (status !in 200..299) {
+                    throw IllegalStateException(
+                        body?.optString("error")?.takeIf { it.isNotBlank() }
+                            ?: "The bill service is temporarily unavailable."
+                    )
+                }
+                body ?: throw IllegalStateException("The bill service returned an invalid response.")
+            } finally {
+                connection.disconnect()
+            }
+        }
+
     suspend fun uploadMyAvatar(bytes: ByteArray, mimeType: String): String {
         require(bytes.isNotEmpty()) { "Choose a profile photo first." }
         require(bytes.size <= 5 * 1024 * 1024) { "Choose an image smaller than 5 MB." }
@@ -274,6 +387,18 @@ data class AccountProfile(
         get() = kycStatus.equals("Verified", ignoreCase = true) &&
             !bvnVerifiedAt.isNullOrBlank() && !ninVerifiedAt.isNullOrBlank()
 }
+
+data class BillCategory(val code: String, val name: String)
+
+data class BillProvider(val code: String, val name: String)
+
+data class BillItem(
+    val code: String,
+    val name: String,
+    val amount: String,
+    val isAirtime: Boolean,
+    val isResolvable: Boolean,
+)
 
 @Serializable
 private data class AvatarUpdate(@SerialName("avatar_url") val avatarUrl: String)

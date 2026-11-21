@@ -37,6 +37,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nedu.wallet.data.AccountProfile
+import com.nedu.wallet.data.BillCategory
+import com.nedu.wallet.data.BillProvider
+import com.nedu.wallet.data.BillItem
 import com.nedu.wallet.data.SupabaseClientProvider
 import com.nedu.wallet.data.WalletBalance
 import com.nedu.wallet.data.WalletRepository
@@ -234,7 +237,12 @@ fun NeduApp() {
                     onCreate = { authError = null; authNotice = null; screen = "signup" }
                 )
                 "home" -> WalletHome(wallets.filterNot { it.isCrypto }, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it }, onWalletClick = { selectedWallet = it; screen = "wallet-detail" })
-                "bills" -> BillsScreen(onNavigate = { screen = it }, onBack = { screen = "home" })
+                "bills" -> BillsScreen(
+                    repository = walletRepository,
+                    onNavigate = { screen = it },
+                    onBack = { screen = "home" },
+                    onWalletRefresh = { wallets = walletRepository.loadMyWallets() },
+                )
                 "crypto" -> CryptoWalletScreen(onNavigate = { screen = it }, onBack = { screen = "home" })
                 "wallet-detail" -> selectedWallet?.let { WalletDetailScreen(it, hideBalance) { screen = "home" } } ?: run { screen = "home" }
                 "send", "receive", "swap", "transfer" -> ActionFlowScreen(screen, wallets) { screen = "home" }
@@ -971,33 +979,290 @@ fun IdentityVerificationScreen(
 }
 
 @Composable
-fun BillsScreen(onNavigate: (String) -> Unit, onBack: () -> Unit) {
-    val categories = listOf(
-        Triple("Mobile Airtime", "MTN, Airtel, Glo, 9mobile", "📱"),
-        Triple("Mobile Data", "Data bundles and subscriptions", "🌐"),
-        Triple("Electricity", "Prepaid and postpaid electricity", "⚡"),
-        Triple("Cable TV", "DStv, GOtv and StarTimes", "📺"),
-        Triple("Internet", "Home and business internet", "🛜"),
-        Triple("Other Local Bills", "Other supported Nigerian billers", "🧾")
-    )
+@Composable
+fun BillsScreen(
+    repository: WalletRepository,
+    onNavigate: (String) -> Unit,
+    onBack: () -> Unit,
+    onWalletRefresh: suspend () -> Unit,
+) {
+    var categories by remember { mutableStateOf<List<BillCategory>>(emptyList()) }
+    var billers by remember { mutableStateOf<List<BillProvider>>(emptyList()) }
+    var billItems by remember { mutableStateOf<List<BillItem>>(emptyList()) }
+    var selectedCategory by remember { mutableStateOf<BillCategory?>(null) }
+    var selectedBiller by remember { mutableStateOf<BillProvider?>(null) }
+    var selectedItem by remember { mutableStateOf<BillItem?>(null) }
+    var customerId by remember { mutableStateOf("") }
+    var customerValidated by remember { mutableStateOf(false) }
+    var purchaseEnabled by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        loading = true
+        try {
+            categories = repository.loadBillCategories()
+            purchaseEnabled = repository.isBillPurchaseEnabled()
+            if (categories.isEmpty()) error = "No bill categories are currently available from the provider."
+        } catch (e: Exception) {
+            error = e.message ?: "Bill catalogue could not be loaded."
+        } finally {
+            loading = false
+        }
+    }
+
     Scaffold(bottomBar = { BottomBar("bills", onNavigate) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(22.dp)) {
-            TextButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = DeepRed); Text("Back to Home", color = DeepRed) }
+        Column(
+            Modifier.fillMaxSize().padding(padding)
+                .verticalScroll(rememberScrollState()).padding(22.dp)
+        ) {
+            TextButton(onClick = {
+                when {
+                    selectedItem != null -> {
+                        selectedItem = null
+                        customerValidated = false
+                        notice = null
+                    }
+                    selectedBiller != null -> {
+                        selectedBiller = null
+                        billItems = emptyList()
+                    }
+                    selectedCategory != null -> {
+                        selectedCategory = null
+                        billers = emptyList()
+                    }
+                    else -> onBack()
+                }
+            }) {
+                Icon(Icons.Default.ArrowBack, null, tint = DeepRed)
+                Text(if (selectedCategory == null) "Back to Home" else "Back", color = DeepRed)
+            }
             Text("Bills & Utilities", fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Ink)
-            Text("Supported Nigerian airtime, data, electricity, cable TV and internet bills.", color = Muted, fontSize = 14.sp)
+            Text(
+                "Airtime, data, electricity, cable TV and other supported Nigerian bills.",
+                color = Muted,
+                fontSize = 14.sp,
+            )
             Spacer(Modifier.height(18.dp))
-            categories.forEach { (title, subtitle, emoji) ->
-                Card(Modifier.fillMaxWidth().padding(vertical = 5.dp), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(emoji, fontSize = 25.sp); Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) { Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp); Text(subtitle, color = Muted, fontSize = 12.sp) }
-                        Icon(Icons.Default.ChevronRight, null, tint = Muted)
+            if (loading) {
+                LinearProgressIndicator(Modifier.fillMaxWidth(), color = NeduRed)
+                Spacer(Modifier.height(12.dp))
+            }
+            error?.let {
+                Text(it, color = DeepRed, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+            }
+            notice?.let {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF6EE)),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text(it, Modifier.padding(14.dp), color = Ink, fontSize = 13.sp, lineHeight = 19.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            when {
+                selectedCategory == null -> {
+                    Text("Choose a bill category", color = Ink, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    categories.forEach { category ->
+                        Card(
+                            Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable {
+                                scope.launch {
+                                    loading = true
+                                    error = null
+                                    notice = null
+                                    selectedCategory = category
+                                    selectedBiller = null
+                                    selectedItem = null
+                                    try {
+                                        billers = repository.loadBillers(category.code)
+                                        if (billers.isEmpty()) error = "No providers are listed for this category yet."
+                                    } catch (e: Exception) {
+                                        error = e.message ?: "Providers could not be loaded."
+                                    } finally {
+                                        loading = false
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = Soft),
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(category.name, color = Ink, fontWeight = FontWeight.SemiBold)
+                                    Text("Provider catalogue", color = Muted, fontSize = 12.sp)
+                                }
+                                Icon(Icons.Default.ChevronRight, null, tint = Muted)
+                            }
+                        }
                     }
                 }
-            }
-            Spacer(Modifier.height(14.dp))
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)), shape = RoundedCornerShape(16.dp)) {
-                Text("Payments are not enabled yet. Provider catalogue lookup, customer validation, atomic wallet debit, provider confirmation and automatic refunds must be completed before money can be taken. This screen cannot debit your wallet.", Modifier.padding(16.dp), color = Ink, fontSize = 13.sp, lineHeight = 19.sp)
+                selectedBiller == null -> {
+                    Text(selectedCategory?.name.orEmpty(), color = Ink, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    billers.forEach { biller ->
+                        Card(
+                            Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable {
+                                scope.launch {
+                                    loading = true
+                                    error = null
+                                    selectedBiller = biller
+                                    selectedItem = null
+                                    try {
+                                        billItems = repository.loadBillItems(biller.code)
+                                        if (billItems.isEmpty()) error = "No bill packages are available for this provider."
+                                    } catch (e: Exception) {
+                                        error = e.message ?: "Bill packages could not be loaded."
+                                    } finally {
+                                        loading = false
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Soft),
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(biller.name, Modifier.weight(1f), color = Ink, fontWeight = FontWeight.SemiBold)
+                                Icon(Icons.Default.ChevronRight, null, tint = Muted)
+                            }
+                        }
+                    }
+                }
+                selectedItem == null -> {
+                    Text(selectedBiller?.name.orEmpty(), color = Ink, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    billItems.forEach { item ->
+                        Card(
+                            Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable {
+                                selectedItem = item
+                                customerId = ""
+                                customerValidated = !item.isResolvable || item.isAirtime
+                                error = null
+                                notice = null
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Soft),
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.name, color = Ink, fontWeight = FontWeight.SemiBold)
+                                    Text("₦${item.amount}", color = DeepRed, fontWeight = FontWeight.Bold)
+                                }
+                                Icon(Icons.Default.ChevronRight, null, tint = Muted)
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    val item = selectedItem!!
+                    Text(item.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("Amount: ₦${item.amount}", color = DeepRed, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (item.isAirtime) "Phone number" else "Customer / account number",
+                        color = Ink,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    SoftField(
+                        value = customerId,
+                        onValueChange = {
+                            customerId = it
+                            customerValidated = !item.isResolvable || item.isAirtime
+                            notice = null
+                        },
+                        hint = "Enter customer or phone number",
+                        keyboard = KeyboardType.Text,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    if (item.isResolvable && !item.isAirtime) {
+                        PrimaryButton(
+                            label = if (loading) "Checking..." else "Validate customer",
+                            enabled = !loading && customerId.length in 5..40,
+                            onClick = {
+                                scope.launch {
+                                    loading = true
+                                    error = null
+                                    notice = null
+                                    try {
+                                        val result = repository.validateBillCustomer(item.code, customerId)
+                                        customerValidated = result.optBoolean("valid", false)
+                                        if (customerValidated) {
+                                            val customer = result.optJSONObject("customer")
+                                            notice = customer?.optString("customer_name")
+                                                ?.takeIf { !it.isNullOrBlank() }
+                                                ?.let { "Customer confirmed: $it" }
+                                                ?: "Customer details validated successfully."
+                                        } else {
+                                            error = result.optString("message", "Customer details could not be validated.")
+                                        }
+                                    } catch (e: Exception) {
+                                        customerValidated = false
+                                        error = e.message ?: "Customer validation failed."
+                                    } finally {
+                                        loading = false
+                                    }
+                                }
+                            },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    if (!purchaseEnabled) {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            Text(
+                                "Provider purchases are still locked. The catalogue and customer validation are available, but no payment will be taken until Flutterwave bill activation and server IP allowlisting are confirmed.",
+                                Modifier.padding(14.dp),
+                                color = Ink,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    PrimaryButton(
+                        label = if (loading) "Processing..." else "Pay bill",
+                        enabled = purchaseEnabled && customerValidated && customerId.length in 5..40 && !loading,
+                        onClick = {
+                            scope.launch {
+                                loading = true
+                                error = null
+                                notice = null
+                                try {
+                                    val result = repository.purchaseBill(
+                                        categoryCode = selectedCategory!!.code,
+                                        billerCode = selectedBiller!!.code,
+                                        itemCode = item.code,
+                                        customerId = customerId,
+                                        amount = item.amount,
+                                    )
+                                    val pending = result.optBoolean("pending_reconciliation", false)
+                                    val purchase = result.optJSONObject("purchase")
+                                    notice = when {
+                                        pending -> "Your request is awaiting provider confirmation. Your funds remain reserved. Do not submit it again."
+                                        purchase?.optString("status") == "success" -> {
+                                            onWalletRefresh()
+                                            "Payment completed successfully."
+                                        }
+                                        else -> result.optString("message", "Bill request submitted.")
+                                    }
+                                } catch (e: Exception) {
+                                    error = e.message ?: "Bill payment could not be completed."
+                                } finally {
+                                    loading = false
+                                }
+                            }
+                        },
+                    )
+                }
             }
         }
     }
