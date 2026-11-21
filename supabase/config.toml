@@ -43,3 +43,21 @@ verify_jwt = true
 
 [functions.resolve-account]
 verify_jwt = true
+
+[functions.create-virtual-account]
+verify_jwt = true
+
+[functions.link-existing-virtual]
+verify_jwt = true
+
+[functions.syn-virtual-payments]
+verify_jwt = true
+
+[functions.flutterwave-webhook]
+verify_jwt = false
+
+[functions.transfer--money]
+verify_jwt = true
+
+[functions.swap-wallet]
+verify_jwt = true
