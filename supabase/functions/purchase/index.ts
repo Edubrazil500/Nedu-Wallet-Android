@@ -147,7 +147,7 @@ serve(async (req) => {
       }
       const result = await flwRequest(
         "/bill-items/" + encodeURIComponent(item) +
-            "/validate?customer=" + encodeURIComponent(customer),
+          "/validate?customer=" + encodeURIComponent(customer),
         secret,
       );
       const data = result.data ?? {};
@@ -201,7 +201,7 @@ serve(async (req) => {
     if (
       customer.length < 5 || customer.length > 40 ||
       !/^[A-Za-z0-9+_-]+$/.test(customer) ||
-        !Number.isFinite(amount) || amount <= 0 || amount > 10000000
+      !Number.isFinite(amount) || amount <= 0 || amount > 10000000
     ) {
       return reply(
         { error: "Enter a valid customer number and bill amount." },
@@ -370,7 +370,7 @@ serve(async (req) => {
           flw_ref: providerData.flw_ref ?? null,
           provider_status: providerData.status ?? null,
           item_code: itemCode,
-        }
+        },
       });
       const { data: latest } = await admin
         .from("purchase_transactions")
@@ -412,7 +412,7 @@ serve(async (req) => {
           p_provider_payload: {
             state: "provider_rejected_and_reference_not_found",
             item_code: itemCode,
-          }
+          },
         });
         const { data: latest } = await admin
           .from("purchase_transactions")
