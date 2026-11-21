@@ -222,7 +222,7 @@ fun NeduApp() {
                                     repository.signIn(email, password)
                                     profile = repository.loadMyProfile()
                                     wallets = repository.loadMyWallets()
-                                    screen = if (wallets.any { !it.isCrypto }) "home" else "identity-verification"
+                                    screen = if (profile?.fiatKycComplete == true) "home" else "identity-verification"
                                 } catch (error: Exception) {
                                     authError = error.message ?: "Unable to sign in. Check your connection and credentials."
                                 } finally {
