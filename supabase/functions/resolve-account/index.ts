@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const authorization = req.headers.get("Authorization") ?? "";
-  const token = authorization.match(/^Bearer\\s+(.+)$/i)?.[1];
+  const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) {
     return json({ error: "Authentication required" }, 401);
   }
@@ -87,13 +87,13 @@ Deno.serve(async (req: Request) => {
   const accountBank = typeof input.account_bank === "string"
     ? input.account_bank.trim()
     : "";
-  if (!/^\\d{10}$/.test(accountNumber)) {
+  if (!/^\d{10}$/.test(accountNumber)) {
     return json(
       { error: "Enter a valid 10-digit Nigerian account number" },
       400,
     );
   }
-  if (!/^\\d{3,6}$/.test(accountBank)) {
+  if (!/^\d{3,6}$/.test(accountBank)) {
     return json({ error: "Select a valid bank" }, 400);
   }
 
@@ -118,7 +118,8 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(
       {
-        error: "Bank verification is temporarily unavailable. Please try again.",
+        error:
+          "Bank verification is temporarily unavailable. Please try again.",
       },
       502,
     );
