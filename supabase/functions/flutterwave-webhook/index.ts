@@ -121,12 +121,13 @@ serve(async (req) => {
       return json({
         received: true,
         pending_reconciliation: true,
-        reason: "Missing transaction or receiving-account metadata",
+        reason: "Missing or invalid transaction reference or receiving-account metadata",
       });
     }
 
-    // The signed webhook identifies the receiving virtual account. Independently verify
-    // the payment with Flutterwave before any wallet credit.
+    // Map the payment using signed receiving-account metadata when available, or the
+    // previously stored virtual-account transaction reference. Verify with Flutterwave
+    // independently before any wallet credit.
     const byRefUrl = new URL(
       "https://api.flutterwave.com/v3/transactions/verify_by_reference",
     );
