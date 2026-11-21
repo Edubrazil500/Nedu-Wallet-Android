@@ -51,7 +51,9 @@ function normalizeAccount(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "");
 }
 function metaObject(value: unknown): Record<string, unknown> {
-  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
   if (typeof value === "string") {
     try {
       return obj(JSON.parse(value));
@@ -125,16 +127,24 @@ serve(async (req) => {
 
     // The signed webhook identifies the receiving virtual account. Independently verify
     // the payment with Flutterwave before any wallet credit.
-    const byRefUrl = new URL("https://api.flutterwave.com/v3/transactions/verify_by_reference");
+    const byRefUrl = new URL(
+      "https://api.flutterwave.com/v3/transactions/verify_by_reference",
+    );
     byRefUrl.searchParams.set("tx_ref", txRef);
     const byRefResponse = await fetch(byRefUrl, {
-      headers: { Authorization: "Bearer " + secret, Accept: "application/json" },
+      headers: {
+        Authorization: "Bearer " + secret,
+        Accept: "application/json",
+      },
       signal: AbortSignal.timeout(15000),
     });
     const byRef = await byRefResponse.json();
     const listedTx = byRef?.data;
     const transactionId = String(listedTx?.id ?? "");
-    if (!byRefResponse.ok || byRef?.status !== "success" || !/^\d+$/.test(transactionId)) {
+    if (
+      !byRefResponse.ok || byRef?.status !== "success" ||
+      !/^\d+$/.test(transactionId)
+    ) {
       return json({
         received: true,
         pending_reconciliation: true,
@@ -144,9 +154,13 @@ serve(async (req) => {
     }
 
     const verifyResponse = await fetch(
-      "https://api.flutterwave.com/v3/transactions/" + encodeURIComponent(transactionId) + "/verify",
+      "https://api.flutterwave.com/v3/transactions/" +
+        encodeURIComponent(transactionId) + "/verify",
       {
-        headers: { Authorization: "Bearer " + secret, Accept: "application/json" },
+        headers: {
+          Authorization: "Bearer " + secret,
+          Accept: "application/json",
+        },
         signal: AbortSignal.timeout(15000),
       },
     );
@@ -164,7 +178,6 @@ serve(async (req) => {
       (Number.isFinite(webhookAmount) && webhookAmount > 0 &&
         Math.abs(Number(tx.amount) - webhookAmount) > 0.01)
     ) {
-    ) {
       return json({
         received: true,
         rejected: true,
@@ -179,7 +192,9 @@ serve(async (req) => {
       .from("profiles")
       .select("id, virtual_account_number, virtual_order_ref");
     const { data: profile, error: profileError } = receivingAccount
-      ? await profileQuery.eq("virtual_account_number", receivingAccount).maybeSingle()
+      ? await profileQuery
+        .eq("virtual_account_number", receivingAccount)
+        .maybeSingle()
       : await profileQuery.eq("virtual_order_ref", txRef).maybeSingle();
     if (profileError) throw profileError;
     if (
@@ -195,7 +210,10 @@ serve(async (req) => {
           "No unique wallet profile matches the verified transaction reference or signed receiving account",
       });
     }
-    if (profile.virtual_order_ref && String(profile.virtual_order_ref) !== txRef) {
+    if (
+      profile.virtual_order_ref &&
+      String(profile.virtual_order_ref) !== txRef
+    ) {
       return json({
         received: true,
         pending_reconciliation: true,
@@ -221,7 +239,7 @@ serve(async (req) => {
           reconciliation_method:
             "signed_webhook_plus_provider_reference_and_id_verification",
         },
-      }
+      },
     );
     if (creditError) throw creditError;
     return json({
