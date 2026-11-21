@@ -80,3 +80,29 @@ The owner has confirmed the configured `FLW_SECRET_KEY` is a Live key. A separat
 ## Approval boundary
 
 No production migration, Edge Function deployment, grant change, PR merge, Live Flutterwave request, or real-money operation is authorized by this checklist. Those steps require an explicit owner approval after the above release gates have evidence of passing.
+
+
+## Deployed backend security work — 21 November 2026
+
+The following changes have been applied directly to the existing Supabase project and are mirrored in the feature branch:
+
+- Removed anonymous and authenticated execution rights from privileged wallet SECURITY DEFINER functions; service-role-only access remains for backend calls.
+- Restricted public client table DDL privileges and hardened the `set_updated_at` trigger function search path.
+- Added a server-only Flutterwave funding event ledger with a unique provider transaction ID and an atomic credit function.
+- Replaced the Flutterwave webhook handler. It is deployed with JWT gateway verification disabled because Flutterwave cannot send a Supabase JWT; the handler requires the configured `verif-hash` secret and independently verifies each transaction with Flutterwave before crediting.
+- Replaced virtual-account creation to derive the customer from the authenticated session, include a unique `tx_ref`, and avoid falsely setting KYC to verified.
+- Replaced payment sync to authenticate the customer, reconcile only their own virtual account, verify each transaction, and use the idempotent credit function.
+- Replaced manual account linking with a safe refusal unless the account is already linked; an account number alone is not proof of ownership.
+- Replaced bank transfer execution with an authenticated pending-review request. It does not debit a wallet or send a payout.
+- Added an authenticated swap Edge Function and restricted the underlying SECURITY DEFINER swap RPC to the service role. Swaps reject rates older than 15 minutes.
+
+### Remaining operational prerequisites
+
+- Configure Supabase Edge Function secrets `FLW_ENVIRONMENT=live`, `FLW_LIVE_ENABLED=true`, and `FLW_WEBHOOK_SECRET_HASH`. Keep the existing `FLUTTERWAVE_SECRET_KEY` secret unchanged and verify it is the Live key. Secret-management actions were not available through the connected project controls in this session.
+- Set the same webhook secret hash in Flutterwave Dashboard → Settings → Webhooks and point the webhook URL to `https://yybmhqviescjpplqfaok.supabase.co/functions/v1/flutterwave-webhook`.
+- Existing profile(s) with an old virtual account but no stored `virtual_order_ref` require provider reconciliation; the new webhook intentionally will not guess which customer to credit.
+- The existing exchange rates were last updated several days ago. The swap endpoint will reject them until a trusted rate feed updates the table.
+- A bank payout integration and card issuer are not configured. No bank payout or card issuance is enabled.
+- Supabase Auth leaked-password protection remains disabled and must be enabled in the Auth password-security settings.
+
+These deployments are security hardening and preparation, not proof of a complete real-money product. No customer charge, bank payout, wallet credit test, card issue, or production release was performed.
