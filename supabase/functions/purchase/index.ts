@@ -147,7 +147,7 @@ serve(async (req) => {
       }
       const result = await flwRequest(
         "/bill-items/" + encodeURIComponent(item) +
-          "/validate?customer=" + encodeURIComponent(customer),
+            "/validate?customer=" + encodeURIComponent(customer),
         secret,
       );
       const data = result.data ?? {};
@@ -168,16 +168,18 @@ serve(async (req) => {
 
     // Live purchases stay off until the provider has confirmed source-account
     // funding and whitelisted the actual egress IP used by this Edge Function.
-    if (Deno.env.get("FLW_ENVIRONMENT") !== "live" ||
-        Deno.env.get("FLW_LIVE_ENABLED") !== "true" ||
-        Deno.env.get("FLW_BILLS_LIVE_ENABLED") !== "true" ||
-        Deno.env.get("FLW_BILLS_IP_WHITELIST_CONFIRMED") !== "true") {
+    if (
+      Deno.env.get("FLW_ENVIRONMENT") !== "live" ||
+      Deno.env.get("FLW_LIVE_ENABLED") !== "true" ||
+      Deno.env.get("FLW_BILLS_LIVE_ENABLED") !== "true" ||
+      Deno.env.get("FLW_BILLS_IP_WHITELIST_CONFIRMED") !== "true"
+    ) {
       return reply({
         error:
           "Bill purchases are not enabled. Complete Flutterwave bill-payment " +
-            "activation and IP allowlisting first.",
+          "activation and IP allowlisting first.",
         disabled: true,
-        no_money_moved: true
+        no_money_moved: true,
       }, 503);
     }
 
@@ -199,7 +201,8 @@ serve(async (req) => {
     if (
       customer.length < 5 || customer.length > 40 ||
       !/^[A-Za-z0-9+_-]+$/.test(customer) ||
-        !Number.isFinite(amount) || amount <= 0 || amount > 10000000) {
+        !Number.isFinite(amount) || amount <= 0 || amount > 10000000
+    ) {
       return reply(
         { error: "Enter a valid customer number and bill amount." },
         400,
@@ -262,23 +265,25 @@ serve(async (req) => {
     const { data: inserted, error: insertError } = await admin
       .from("purchase_transactions")
       .insert({
-      user_id: auth.user.id,
-      type: "bills",
-      category,
-      provider: "Flutterwave",
-      provider_code: biller,
-      account_number: customer,
-      amount: Number(amount.toFixed(2)),
-      currency: "NGN",
-      pay_from_wallet: "NGN",
-      status: "pending",
-      provider_reference: txRef,
-      idempotency_key: idempotencyKey,
-      metadata: {
-        item_code: itemCode,
-        biller_name: String(item.biller_name || item.name || ""),
-      }
-    }).select("*").single();
+        user_id: auth.user.id,
+        type: "bills",
+        category,
+        provider: "Flutterwave",
+        provider_code: biller,
+        account_number: customer,
+        amount: Number(amount.toFixed(2)),
+        currency: "NGN",
+        pay_from_wallet: "NGN",
+        status: "pending",
+        provider_reference: txRef,
+        idempotency_key: idempotencyKey,
+        metadata: {
+          item_code: itemCode,
+          biller_name: String(item.biller_name || item.name || ""),
+        },
+      })
+      .select("*")
+      .single();
 
     if (insertError) {
       if (insertError.code === "23505") {
@@ -297,9 +302,8 @@ serve(async (req) => {
             String(oldMeta.item_code ?? "") === itemCode;
           if (!same) {
             return reply({
-              error:
-                "This request ID was already used for a different bill. " +
-                  "Generate a new request ID.",
+              error: "This request ID was already used for a different bill. " +
+                "Generate a new request ID.",
             }, 409);
           }
           return reply({ purchase: existing, duplicate_request: true }, 200);
@@ -316,13 +320,13 @@ serve(async (req) => {
       p_purchase_id: purchase.id,
       p_user_id: auth.user.id,
       p_wallet_code: "NGN",
-      p_amount: amount
+      p_amount: amount,
     });
     if (reserveError) {
       await admin.from("purchase_transactions").update({
         status: "failed",
         error_message: reserveError.message,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }).eq("id", purchase.id).eq("user_id", auth.user.id);
       return reply({
         error: reserveError.message.includes("Insufficient")
@@ -336,16 +340,20 @@ serve(async (req) => {
     // until status polling proves success or failure; never auto-refund
     // a timeout that might have resulted in a provider-side payment.
     try {
-      await flwRequest("/billers/" + encodeURIComponent(biller) + "/items/" +
-        encodeURIComponent(itemCode) + "/payment", secret, {
+      await flwRequest(
+        "/billers/" + encodeURIComponent(biller) + "/items/" +
+          encodeURIComponent(itemCode) + "/payment",
+        secret,
+        {
           method: "POST",
           body: JSON.stringify({
             country: "NG",
             customer_id: customer,
             amount,
-            reference: txRef
-          })
-        });
+            reference: txRef,
+          }),
+        },
+      );
       const statusResult = await flwRequest(
         "/bills/" + encodeURIComponent(txRef) + "?verbose=1",
         secret,
@@ -361,7 +369,7 @@ serve(async (req) => {
         p_provider_payload: {
           flw_ref: providerData.flw_ref ?? null,
           provider_status: providerData.status ?? null,
-          item_code: itemCode
+          item_code: itemCode,
         }
       });
       const { data: latest } = await admin
@@ -372,7 +380,7 @@ serve(async (req) => {
         purchase: latest,
         settlement: settled.data,
         provider_status: finalStatus,
-        pending_reconciliation: finalStatus === "pending"
+        pending_reconciliation: finalStatus === "pending",
       }, finalStatus === "pending" ? 202 : 200);
     } catch (providerError) {
       const rejectedCode = Number((providerError as any)?.httpStatus);
@@ -388,7 +396,7 @@ serve(async (req) => {
                 Authorization: "Bearer " + secret,
                 Accept: "application/json",
               },
-            signal: AbortSignal.timeout(12000)
+              signal: AbortSignal.timeout(12000),
             },
           );
           if (probe.status === 404) confirmedFailure = true;
@@ -396,8 +404,10 @@ serve(async (req) => {
       }
       if (confirmedFailure) {
         await admin.rpc("settle_wallet_purchase", {
-          p_purchase_id: purchase.id, p_user_id: auth.user.id,
-          p_provider_status: "failed", p_provider_reference: null,
+          p_purchase_id: purchase.id,
+          p_user_id: auth.user.id,
+          p_provider_status: "failed",
+          p_provider_reference: null,
           p_delivery_code: null,
           p_provider_payload: {
             state: "provider_rejected_and_reference_not_found",
@@ -408,15 +418,18 @@ serve(async (req) => {
           .from("purchase_transactions")
           .select("*")
           .eq("id", purchase.id).single();
-        return reply({ purchase: latest, refunded: true,
-          message:
-            "Flutterwave rejected the request. The reserved amount has " +
-              "been returned to your NGN wallet.",
+        return reply({
+          purchase: latest,
+          refunded: true,
+          message: "Flutterwave rejected the request. The reserved amount " +
+            "has been returned to your NGN wallet.",
         }, 200);
       }
       await admin.rpc("settle_wallet_purchase", {
-        p_purchase_id: purchase.id, p_user_id: auth.user.id,
-        p_provider_status: "pending", p_provider_reference: null,
+        p_purchase_id: purchase.id,
+        p_user_id: auth.user.id,
+        p_provider_status: "pending",
+        p_provider_reference: null,
         p_delivery_code: null,
         p_provider_payload: {
           state: "provider_result_unknown",
@@ -427,10 +440,11 @@ serve(async (req) => {
         .from("purchase_transactions")
         .select("*")
         .eq("id", purchase.id).single();
-      return reply({ purchase: latest, pending_reconciliation: true,
-        message:
-          "The provider response is still being confirmed. Your funds " +
-            "remain reserved; do not pay again.",
+      return reply({
+        purchase: latest,
+        pending_reconciliation: true,
+        message: "The provider response is still being confirmed. Your funds " +
+          "remain reserved; do not pay again.",
       }, 202);
     }
   } catch (error) {
