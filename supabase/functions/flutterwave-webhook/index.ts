@@ -89,16 +89,15 @@ serve(async (req) => {
     const nestedEvent = obj(body?.event);
     const eventType = String(
       nestedEvent?.type ?? body?.["event.type"] ?? body?.event_type ??
-      (typeof body?.event === "string" ? body.event : (body?.type ?? "")),
+        (typeof body?.event === "string" ? body.event : (body?.type ?? "")),
     ).toUpperCase();
 
     // Flutterwave virtual-account transfers may arrive as BANK_TRANSFER_TRANSACTION
     // or as charge.completed with the bank-transfer event type in the payload.
     const paymentType = String(
-      eventData.payment_type ?? eventData.paymentType ?? ""
+      eventData.payment_type ?? eventData.paymentType ?? "",
     ).toLowerCase();
-    const isBankTransferEvent =
-      eventType === "BANK_TRANSFER_TRANSACTION" ||
+    const isBankTransferEvent = eventType === "BANK_TRANSFER_TRANSACTION" ||
       (eventType === "CHARGE.COMPLETED" && paymentType === "bank_transfer");
     if (!isBankTransferEvent) return json({ received: true, ignored: true });
 
@@ -111,8 +110,8 @@ serve(async (req) => {
     );
     const receivingAccount = normalizeAccount(
       metadata.virtualaccountnumber ??
-      metadata.virtual_account_number ?? metadata.account_number ??
-      metadata.virtualAccountNumber,
+        metadata.virtual_account_number ?? metadata.account_number ??
+        metadata.virtualAccountNumber,
     );
     if (
       !txRef || txRef.length > 128 ||
@@ -201,7 +200,8 @@ serve(async (req) => {
     if (
       !profile ||
       (receivingAccount &&
-        normalizeAccount(profile.virtual_account_number) !== receivingAccount) ||
+        normalizeAccount(profile.virtual_account_number) !==
+          receivingAccount) ||
       (!receivingAccount && String(profile.virtual_order_ref ?? "") !== txRef)
     ) {
       return json({
