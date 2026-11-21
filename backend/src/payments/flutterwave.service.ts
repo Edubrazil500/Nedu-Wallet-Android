@@ -26,7 +26,7 @@ export class FlutterwaveService {
       );
     }
 
-    if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\\\')) {
+    if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
       throw new ServiceUnavailableException('Invalid Flutterwave API path.');
     }
 
