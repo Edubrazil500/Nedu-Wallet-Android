@@ -237,12 +237,32 @@ fun NeduApp() {
                     onCreate = { authError = null; authNotice = null; screen = "signup" }
                 )
                 "home" -> WalletHome(wallets.filterNot { it.isCrypto }, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it }, onWalletClick = { selectedWallet = it; screen = "wallet-detail" })
-                "bills" -> BillsScreen(
-                    repository = walletRepository,
-                    onNavigate = { screen = it },
-                    onBack = { screen = "home" },
-                    onWalletRefresh = { wallets = walletRepository.loadMyWallets() },
-                )
+                "bills" -> {
+                    val repository = walletRepository
+                    if (repository == null) {
+                        Column(
+                            Modifier.fillMaxSize().padding(24.dp),
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                "Bills are unavailable because Supabase is not configured.",
+                                color = Ink,
+                                fontSize = 16.sp,
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            PrimaryButton("Back to Home") { screen = "home" }
+                        }
+                    } else {
+                        BillsScreen(
+                            repository = repository,
+                            onNavigate = { screen = it },
+                            onBack = { screen = "home" },
+                            onWalletRefresh = {
+                                wallets = repository.loadMyWallets()
+                            },
+                        )
+                    }
+                }
                 "crypto" -> CryptoWalletScreen(onNavigate = { screen = it }, onBack = { screen = "home" })
                 "wallet-detail" -> selectedWallet?.let { WalletDetailScreen(it, hideBalance) { screen = "home" } } ?: run { screen = "home" }
                 "send", "receive", "swap", "transfer" -> ActionFlowScreen(screen, wallets) { screen = "home" }
