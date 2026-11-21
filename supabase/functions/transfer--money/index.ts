@@ -19,7 +19,8 @@ serve((req) => {
   }
   return new Response(
     JSON.stringify({
-      error: "This feature is temporarily disabled while its safeguards are completed.",
+      error:
+        "This feature is temporarily disabled while its safeguards are completed.",
       disabled: true,
       no_money_moved: true,
     }),
