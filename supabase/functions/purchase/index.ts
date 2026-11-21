@@ -159,7 +159,7 @@ serve(async (req) => {
         secret,
       );
       const data = result.data ?? {};
-      if (data.response_code && String(data.response_code) !== "00") {
+      if (String(data.response_code ?? "") !== "00") {
         return reply({
           valid: false,
           message: String(
@@ -254,10 +254,7 @@ serve(async (req) => {
           "/validate?customer=" + encodeURIComponent(customer),
         secret,
       );
-      if (
-        validation.data?.response_code &&
-        String(validation.data.response_code) !== "00"
-      ) {
+      if (String(validation.data?.response_code ?? "") !== "00") {
         return reply({
           error: String(
             validation.data.response_message ||
