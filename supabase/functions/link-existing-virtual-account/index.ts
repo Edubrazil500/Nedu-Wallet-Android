@@ -36,18 +36,24 @@ serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: profile, error: profileError } = await admin.from("profiles")
-      .select("virtual_account_number,virtual_bank_name").eq("id", data.user.id)
+      .select("virtual_account_number,virtual_bank_name,virtual_order_ref").eq("id", data.user.id)
       .single();
     if (profileError || !profile) {
       return out({ error: "Wallet profile not found." }, 404);
     }
-    if (profile.virtual_account_number === account) {
+    if (profile.virtual_account_number === account && profile.virtual_order_ref) {
       return out({
         ok: true,
         account_number: account,
         bank_name: profile.virtual_bank_name ?? "",
         already_linked: true,
       });
+    }
+    if (profile.virtual_account_number === account && !profile.virtual_order_ref) {
+      return out({
+        error:
+          "This legacy account needs Flutterwave reconciliation before it can be treated as verified. No KYC status was changed.",
+      }, 409);
     }
     // A bank account number supplied by a client is not proof of ownership or a Flutterwave virtual account.
     // Do not bind it to a wallet or make it eligible for funding credits.
