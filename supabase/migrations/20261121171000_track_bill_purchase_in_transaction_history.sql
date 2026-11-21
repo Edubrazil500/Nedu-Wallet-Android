@@ -1,3 +1,36 @@
+-- Ensure the local migration chain has the same wallet fields and transaction
+-- history table that the existing production wallet schema already provides.
+alter table public.wallets
+  add column if not exists code text not null default 'NGN',
+  add column if not exists balance numeric(20,2) not null default 0;
+create unique index if not exists wallets_user_code_uidx
+  on public.wallets(user_id, code);
+
+create table if not exists public.transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null,
+  from_code text,
+  to_code text,
+  amount numeric(20,2) not null check (amount > 0),
+  converted_amount numeric(20,2) default 0,
+  to_name text default '',
+  to_bank text default '',
+  to_country text default '',
+  to_address text default '',
+  status text default 'completed',
+  created_at timestamptz default now()
+);
+create index if not exists transactions_user_created_idx
+  on public.transactions(user_id, created_at desc);
+alter table public.transactions enable row level security;
+drop policy if exists transactions_select_own on public.transactions;
+create policy transactions_select_own on public.transactions
+  for select to authenticated using (user_id = (select auth.uid()));
+revoke insert, update, delete on public.transactions from public, anon, authenticated;
+grant select on public.transactions to authenticated;
+grant all on public.transactions to service_role;
+
 alter table public.purchase_transactions
   add column if not exists wallet_transaction_id uuid
   references public.transactions(id);
