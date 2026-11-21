@@ -499,44 +499,72 @@ fun CardScreen(onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(
-    profile: AccountProfile?,
-    onNavigate: (String) -> Unit,
-    onEditProfile: () -> Unit,
-    onSignOut: () -> Unit
-) {
-    Scaffold(bottomBar = { BottomBar("profile", onNavigate) }) {
-        Column(Modifier.fillMaxSize().padding(it).padding(22.dp)) {
+fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onEditProfile: () -> Unit, onSignOut: () -> Unit) {
+    Scaffold(bottomBar = { BottomBar("profile", onNavigate) }) { insets ->
+        Column(Modifier.fillMaxSize().padding(insets).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp).padding(bottom = 28.dp)) {
             Spacer(Modifier.height(24.dp))
-            Text("Profile", fontSize = 32.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(24.dp))
-            Text(profile?.name?.takeIf { name -> name.isNotBlank() } ?: "Your Nedu Wallet account",
-                fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text(profile?.email ?: "Profile details are not available for this account.", color = Muted)
-            profile?.phone?.let { phone ->
-                Text(phone, color = Muted, modifier = Modifier.padding(top = 4.dp))
+            Text("Profile", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Spacer(Modifier.height(20.dp))
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = DeepRed)) {
+                Column(Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(NeduRed, DeepRed))).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    val initials = profile?.name.orEmpty().trim().split(" ").filter { it.isNotBlank() }.take(2).map { it.first().uppercaseChar() }.joinToString("")
+                    Box(Modifier.size(92.dp).background(Color.White, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
+                        Text(initials.ifBlank { "NW" }, color = DeepRed, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(profile?.name?.takeIf { it.isNotBlank() } ?: "Nedu Wallet Customer", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Text("Nedu Wallet account", color = Color.White.copy(.82f), fontSize = 13.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text("A profile photo can be added after secure photo storage is connected.", color = Color.White.copy(.82f), fontSize = 11.sp, textAlign = TextAlign.Center)
+                }
             }
-            profile?.country?.let { country ->
-                Text(country, color = Muted, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(20.dp))
+            Text("Personal Information", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
+                Column(Modifier.padding(18.dp)) {
+                    ProfileValue("Full name", profile?.name ?: "Not available")
+                    ProfileValue("Email", profile?.email ?: "Not available")
+                    ProfileValue("Phone", profile?.phone?.takeIf { it.isNotBlank() } ?: "Not added")
+                    ProfileValue("Country", profile?.country?.takeIf { it.isNotBlank() } ?: "Not set", last = true)
+                }
             }
-            Spacer(Modifier.height(24.dp))
-            listOf("Personal Information", "Security & 2FA", "Backup & Recovery Phrase", "Notifications", "Help & Support", "Terms & Privacy").forEach { setting ->
-                Card(
-                    Modifier.fillMaxWidth().padding(vertical = 5.dp)
-                        .clickable(enabled = setting == "Personal Information") {
-                            if (setting == "Personal Information") onEditProfile()
-                        },
-                    colors = CardDefaults.cardColors(containerColor = Soft)
-                ) {
+            Spacer(Modifier.height(14.dp))
+            OutlinedButton(onClick = onEditProfile, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepRed)) {
+                Icon(Icons.Default.Edit, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Edit Personal Information", fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(22.dp))
+            Text("Account & Support", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            listOf("Security & 2FA", "Backup & Recovery", "Notifications", "Help & Support", "Terms & Privacy").forEach { label ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
                     Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(setting, Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                        Text(label, Modifier.weight(1f), fontWeight = FontWeight.Medium, color = Ink)
                         Icon(Icons.Default.ChevronRight, null, tint = Muted)
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
-            PrimaryButton("Sign Out", onSignOut)
+            Spacer(Modifier.height(18.dp))
+            Button(onClick = onSignOut, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Black)) {
+                Text("Log Out", color = Color.White, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("Nedu Wallet · Secure account", modifier = Modifier.fillMaxWidth(), color = Muted, textAlign = TextAlign.Center, fontSize = 12.sp)
         }
+    }
+}
+
+@Composable
+private fun ProfileValue(label: String, value: String, last: Boolean = false) {
+    Column {
+        Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.weight(1f), color = Muted, fontSize = 14.sp)
+            Spacer(Modifier.width(12.dp))
+            Text(value, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
+        }
+        if (!last) HorizontalDivider(color = Color(0xFFE2E0E7))
     }
 }
 
