@@ -160,7 +160,7 @@ fun NeduApp() {
                     },
                     onCreate = { authError = null; authNotice = null; screen = "signup" }
                 )
-                "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it })
+                "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it }, onWalletClick = { selectedWallet = it; screen = "wallet-detail" })
                 "card" -> CardScreen(onNavigate = { screen = it })
                 "edit-profile" -> EditProfileScreen(
                     profile = profile,
@@ -367,7 +367,7 @@ fun SignupScreen(
 }
 
 @Composable
-fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -> Unit, onNavigate: (String) -> Unit) {
+fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -> Unit, onNavigate: (String) -> Unit, onWalletClick: (WalletBalance) -> Unit) {
     Scaffold(bottomBar = { BottomBar("home", onNavigate) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
             item {
@@ -413,7 +413,8 @@ fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -
                             name = wallet.name,
                             code = wallet.code,
                             amount = "${wallet.balance} ${wallet.code}",
-                            hidden = hidden
+                            hidden = hidden,
+                            onClick = { onWalletClick(wallet) }
                         )
                     }
                 }
@@ -423,8 +424,8 @@ fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -
 }
 
 @Composable
-fun WalletRow(flag: String, name: String, code: String, amount: String, hidden: Boolean) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
+fun WalletRow(flag: String, name: String, code: String, amount: String, hidden: Boolean, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(flag, fontSize = 25.sp)
             Spacer(Modifier.width(14.dp))
