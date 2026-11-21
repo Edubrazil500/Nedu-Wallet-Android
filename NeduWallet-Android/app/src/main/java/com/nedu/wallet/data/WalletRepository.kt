@@ -126,7 +126,7 @@ class WalletRepository(
             "image/webp" -> "webp"
             else -> "jpg"
         }
-        val path = "$" + "userId/" + UUID.randomUUID().toString() + "." + extension
+        val path = userId + "/" + UUID.randomUUID().toString() + "." + extension
         val bucket = client.storage["avatars"]
         bucket.upload(path, bytes) {
             contentType = ContentType.parse(mimeType)
