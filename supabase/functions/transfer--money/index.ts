@@ -84,7 +84,7 @@ serve(async (req) => {
       recipient_name: recipient,
       bank_name: bank,
       bank_code: bankCode,
-      account_number: account,
+      account_number_last4: account.slice(-4),
       country,
       status: "pending_review",
     }).select("id,status,created_at").single();
