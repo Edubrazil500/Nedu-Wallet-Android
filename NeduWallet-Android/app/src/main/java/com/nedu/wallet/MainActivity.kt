@@ -1,6 +1,8 @@
 package com.nedu.wallet
 
 import android.os.Bundle
+import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,6 +81,8 @@ fun NeduApp() {
     var identityType by remember { mutableStateOf("bvn") }
     var identityNumber by remember { mutableStateOf("") }
     var identitySelfie by remember { mutableStateOf<String?>(null) }
+    var identityCaptureUri by remember { mutableStateOf<Uri?>(null) }
+    var identityCaptureFile by remember { mutableStateOf<java.io.File?>(null) }
     var identityMessage by remember { mutableStateOf<String?>(null) }
     var identityError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -107,22 +111,38 @@ fun NeduApp() {
         }
     }
 
-    val identityCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-        if (bitmap != null) {
-            try {
-                val output = java.io.ByteArrayOutputStream()
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, output)
-                val bytes = output.toByteArray()
-                require(bytes.size <= 6 * 1024 * 1024) { "Captured selfie is too large. Please try again." }
-                identitySelfie = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-                identityError = null
-                identityMessage = "Camera selfie captured. It will be checked by Prembly when you submit."
-            } catch (error: Exception) {
-                identitySelfie = null
-                identityError = error.message ?: "Unable to capture that selfie."
+    val identityCamera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
+        val file = identityCaptureFile
+        try {
+            if (!captured || identityCaptureUri == null || file == null) {
+                throw IllegalStateException("Camera capture was cancelled. Please take a selfie to continue.")
             }
-        } else {
-            identityError = "Camera capture was cancelled. Please take a selfie to continue."
+            val bitmap = context.contentResolver.openInputStream(identityCaptureUri!!)?.use {
+                android.graphics.BitmapFactory.decodeStream(it)
+            } ?: throw IllegalStateException("Could not read the captured selfie.")
+            val maxSide = maxOf(bitmap.width, bitmap.height)
+            val finalBitmap = if (maxSide > 1600) {
+                val ratio = 1600f / maxSide
+                android.graphics.Bitmap.createScaledBitmap(
+                    bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true
+                )
+            } else bitmap
+            val output = java.io.ByteArrayOutputStream()
+            finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, output)
+            if (finalBitmap !== bitmap) finalBitmap.recycle()
+            bitmap.recycle()
+            val bytes = output.toByteArray()
+            require(bytes.size <= 6 * 1024 * 1024) { "Captured selfie is too large. Please try again." }
+            identitySelfie = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+            identityError = null
+            identityMessage = "Camera selfie captured. Prembly will check image authenticity and match it against your ID record when submitted."
+        } catch (error: Exception) {
+            identitySelfie = null
+            identityError = error.message ?: "Unable to capture that selfie."
+        } finally {
+            file?.delete()
+            identityCaptureFile = null
+            identityCaptureUri = null
         }
     }
 
@@ -229,7 +249,20 @@ fun NeduApp() {
                     message = identityMessage,
                     errorMessage = identityError,
                     loading = isLoading,
-                    onChooseSelfie = { identityCamera.launch(null) },
+                    onChooseSelfie = {
+                        try {
+                            val directory = java.io.File(context.cacheDir, "identity").apply { mkdirs() }
+                            val file = java.io.File.createTempFile("selfie-", ".jpg", directory)
+                            val uri = FileProvider.getUriForFile(
+                                context, "${context.packageName}.fileprovider", file
+                            )
+                            identityCaptureFile = file
+                            identityCaptureUri = uri
+                            identityCamera.launch(uri)
+                        } catch (error: Exception) {
+                            identityError = error.message ?: "Unable to open the camera."
+                        }
+                    },
                     onBack = { identityError = null; identityMessage = null; screen = "profile" },
                     onSubmit = {
                         val repository = walletRepository
