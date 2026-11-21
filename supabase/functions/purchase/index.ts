@@ -285,6 +285,20 @@ serve(async (req) => {
       }, 202);
     }
 
+    const dedupeMaterial = [
+      biller,
+      itemCode,
+      customer,
+      amount.toFixed(2),
+      Math.floor(Date.now() / 300000),
+    ].join("|");
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(dedupeMaterial),
+    );
+    const dedupeKey = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
     const txRef = "NEDU-BILL-" +
       crypto.randomUUID().replace(/-/g, "").toUpperCase();
     let purchase: any = null;
@@ -303,6 +317,7 @@ serve(async (req) => {
         status: "pending",
         provider_reference: txRef,
         idempotency_key: idempotencyKey,
+        dedupe_key: dedupeKey,
         metadata: {
           item_code: itemCode,
           biller_name: String(item.biller_name || item.name || ""),
@@ -313,18 +328,18 @@ serve(async (req) => {
 
     if (insertError) {
       if (insertError.code === "23505") {
-        const { data: existing } = await admin
+        const { data: existingByRequest } = await admin
           .from("purchase_transactions")
           .select("*")
           .eq("user_id", auth.user.id)
           .eq("idempotency_key", idempotencyKey)
           .maybeSingle();
-        if (existing) {
-          const oldMeta = existing.metadata ?? {};
-          const same = Number(existing.amount) === Number(amount) &&
-            String(existing.category ?? "") === category &&
-            String(existing.provider_code ?? "") === biller &&
-            String(existing.account_number ?? "") === customer &&
+        if (existingByRequest) {
+          const oldMeta = existingByRequest.metadata ?? {};
+          const same = Number(existingByRequest.amount) === Number(amount) &&
+            String(existingByRequest.category ?? "") === category &&
+            String(existingByRequest.provider_code ?? "") === biller &&
+            String(existingByRequest.account_number ?? "") === customer &&
             String(oldMeta.item_code ?? "") === itemCode;
           if (!same) {
             return reply({
@@ -332,7 +347,32 @@ serve(async (req) => {
                 "Generate a new request ID.",
             }, 409);
           }
-          return reply({ purchase: existing, duplicate_request: true }, 200);
+          const pending = existingByRequest.wallet_debit_status === "reserved";
+          return reply({
+            purchase: existingByRequest,
+            duplicate_request: true,
+            pending_reconciliation: pending,
+          }, pending ? 202 : 200);
+        }
+
+        const { data: existingByWindow } = await admin
+          .from("purchase_transactions")
+          .select("*")
+          .eq("user_id", auth.user.id)
+          .eq("dedupe_key", dedupeKey)
+          .maybeSingle();
+        if (existingByWindow) {
+          const pending = existingByWindow.wallet_debit_status === "reserved";
+          return reply({
+            purchase: existingByWindow,
+            duplicate_request: true,
+            pending_reconciliation: pending,
+            message: pending
+              ? "A matching bill request is still awaiting provider confirmation. Check its status before trying again."
+              : existingByWindow.status === "success"
+              ? "This bill was already paid recently. Check your transaction history before trying again."
+              : "A matching bill request was already recorded. Please wait before retrying this bill.",
+          }, pending ? 202 : 200);
         }
       }
       return reply({
