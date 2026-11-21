@@ -3,7 +3,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(40);
+select plan(42);
 
 -- Simulate two Supabase Auth signups. The auth.users trigger must provision
 -- each profile, NGN wallet, and wallet ledger account atomically.
@@ -211,6 +211,13 @@ insert into public.purchase_transactions (
     'bills', 'POWER', 'Flutterwave', 'BIL100', '12345678902',
     100, 'NGN', 'NGN', 'pending', 'NEDU-BILL-TEST-THREE',
     '{"item_code":"POWER-PREPAID"}'
+  ),
+  (
+    '20000000-0000-4000-8000-000000000004',
+    '10000000-0000-4000-8000-000000000001',
+    'bills', 'POWER', 'Flutterwave', 'BIL100', '12345678901',
+    500, 'NGN', 'NGN', 'pending', 'NEDU-BILL-TEST-FOUR',
+    '{"item_code":"POWER-PREPAID"}'
   );
 
 select is(
@@ -229,6 +236,34 @@ select is(
   4500::numeric,
   'Reservation debits the wallet exactly once'
 );
+create function pg_temp.duplicate_active_bill_reservation_is_rejected()
+returns boolean
+language plpgsql
+as $
+begin
+  perform public.reserve_wallet_purchase(
+    '20000000-0000-4000-8000-000000000004',
+    '10000000-0000-4000-8000-000000000001',
+    'NGN',
+    500
+  );
+  return false;
+exception
+  when unique_violation then return true;
+end;
+$;
+
+select ok(
+  pg_temp.duplicate_active_bill_reservation_is_rejected(),
+  'Concurrent duplicate bill reservation for the same account is rejected'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
+  4500::numeric,
+  'Rejected duplicate bill reservation cannot debit the wallet'
+);
+
 select is(
   (select status || ':' || wallet_debit_status
    from public.purchase_transactions
