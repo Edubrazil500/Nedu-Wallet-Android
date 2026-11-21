@@ -147,7 +147,7 @@ serve(async (req) => {
       }
       const result = await flwRequest(
         "/bill-items/" + encodeURIComponent(item) +
-          "/validate?customer=" + encodeURIComponent(customer),
+            "/validate?customer=" + encodeURIComponent(customer),
         secret,
       );
       const data = result.data ?? {};
@@ -243,7 +243,7 @@ serve(async (req) => {
     if (item.is_resolvable === true && item.is_airtime !== true) {
       const validation = await flwRequest(
         "/bill-items/" + encodeURIComponent(itemCode) +
-        "/validate?customer=" + encodeURIComponent(customer),
+          "/validate?customer=" + encodeURIComponent(customer),
         secret,
       );
       if (
@@ -434,7 +434,7 @@ serve(async (req) => {
         p_provider_payload: {
           state: "provider_result_unknown",
           item_code: itemCode,
-        }
+        },
       });
       const { data: latest } = await admin
         .from("purchase_transactions")
