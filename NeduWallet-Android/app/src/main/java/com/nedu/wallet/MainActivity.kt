@@ -190,6 +190,9 @@ fun NeduApp() {
                 )
                 "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it }, onWalletClick = { selectedWallet = it; screen = "wallet-detail" })
                 "wallet-detail" -> selectedWallet?.let { WalletDetailScreen(it, hideBalance) { screen = "home" } } ?: run { screen = "home" }
+                "send", "receive", "swap", "transfer" -> ActionFlowScreen(screen, wallets) { screen = "home" }
+                "support-security-2fa", "support-backup-recovery", "support-notifications", "support-help-support", "support-terms-privacy" ->
+                    SupportDetailScreen(screen) { screen = "profile" }
                 "card" -> CardScreen(onNavigate = { screen = it })
                 "edit-profile" -> EditProfileScreen(
                     profile = profile,
@@ -413,75 +416,73 @@ fun SignupScreen(
 
 @Composable
 fun WalletHome(wallets: List<WalletBalance>, hidden: Boolean, toggleHidden: () -> Unit, onNavigate: (String) -> Unit, onWalletClick: (WalletBalance) -> Unit) {
+    val ngnBalance = wallets.firstOrNull { it.code.equals("NGN", true) }?.balance ?: "0"
     Scaffold(bottomBar = { BottomBar("home", onNavigate) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
             item {
-                Spacer(Modifier.height(24.dp))
-                Text("Nedu Wallet", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Ink)
                 Spacer(Modifier.height(22.dp))
-                Box(Modifier.fillMaxWidth().background(Brush.horizontalGradient(listOf(NeduRed, DeepRed)), RoundedCornerShape(28.dp)).padding(24.dp)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text("Good to see you", color = Muted, fontSize = 14.sp)
+                Text("Nedu Wallet", fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Spacer(Modifier.height(18.dp))
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = DeepRed)) {
+                    Column(Modifier.background(Brush.linearGradient(listOf(NeduRed, DeepRed, Color(0xFF64101A)))).padding(22.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Your Wallets", color = Color.White.copy(.8f), fontSize = 15.sp)
+                            Text("Available NGN balance", color = Color.White.copy(.82f), modifier = Modifier.weight(1f), fontSize = 14.sp)
                             IconButton(onClick = toggleHidden) { Icon(if (hidden) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = Color.White) }
                         }
-                        Text("Multi-currency account", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                        Text("Balances are loaded from your account", color = Color.White.copy(.7f), fontSize = 13.sp)
+                        Text(if (hidden) "₦ ••••••••" else "₦ $ngnBalance", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(5.dp))
+                        Text("Your other currency balances are listed separately below.", color = Color.White.copy(.76f), fontSize = 12.sp)
                     }
                 }
                 Spacer(Modifier.height(18.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ActionTile("↑", "Send", Modifier.weight(1f))
-                    ActionTile("↓", "Receive", Modifier.weight(1f))
-                    ActionTile("⇄", "Swap", Modifier.weight(1f))
-                    ActionTile("◎", "Transfer", Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    ActionTile("↑", "Send", Modifier.weight(1f)) { onNavigate("send") }
+                    ActionTile("↓", "Receive", Modifier.weight(1f)) { onNavigate("receive") }
+                    ActionTile("⇄", "Swap", Modifier.weight(1f)) { onNavigate("swap") }
+                    ActionTile("↗", "Transfer", Modifier.weight(1f)) { onNavigate("transfer") }
                 }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Send, receive, swap and transfer will be enabled after their secure server-side workflows are verified.",
-                    color = Muted,
-                    fontSize = 12.sp
-                )
-                Spacer(Modifier.height(18.dp))
-                Text("Your Wallets", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(23.dp))
+                Text("My Wallets", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text("Tap any wallet to view its balance and account details.", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(9.dp))
             }
             if (wallets.isEmpty()) {
-                item {
-                    Text("No wallets were returned for this account.", color = Muted, modifier = Modifier.padding(vertical = 20.dp))
-                }
+                item { Text("No wallets were returned for this account.", color = Muted, modifier = Modifier.padding(vertical = 20.dp)) }
             } else {
                 wallets.forEach { wallet ->
                     item {
                         WalletRow(
-                            flag = currencyMark(wallet.code),
-                            name = wallet.name,
-                            code = wallet.code,
-                            amount = "${wallet.balance} ${wallet.code}",
-                            hidden = hidden,
-                            onClick = { onWalletClick(wallet) }
+                            flag = currencyMark(wallet.code), name = wallet.name, code = wallet.code,
+                            amount = "${wallet.balance} ${wallet.code}", hidden = hidden,
+                            onClick = { onWalletClick(wallet) }, crypto = wallet.isCrypto
                         )
                     }
                 }
             }
+            item { Spacer(Modifier.height(14.dp)) }
         }
     }
 }
 
 @Composable
-fun WalletRow(flag: String, name: String, code: String, amount: String, hidden: Boolean, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(flag, fontSize = 25.sp)
-            Spacer(Modifier.width(14.dp))
+fun WalletRow(flag: String, name: String, code: String, amount: String, hidden: Boolean, onClick: () -> Unit, crypto: Boolean = false) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable(onClick = onClick), shape = RoundedCornerShape(19.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(1.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(CircleShape).background(if (crypto) Color(0xFFEAF5EF) else Color(0xFFFFEEEE)), contentAlignment = Alignment.Center) {
+                Text(flag, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = if (crypto) Color(0xFF16764B) else DeepRed)
+            }
+            Spacer(Modifier.width(13.dp))
             Column(Modifier.weight(1f)) {
-                Text(name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(code, color = Muted, fontSize = 14.sp)
+                Text(name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Ink)
+                Text(if (crypto) "$code · Digital asset" else "$code · Cash wallet", color = Muted, fontSize = 12.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(if (hidden) "••••" else amount, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text("Available balance", color = Muted, fontSize = 12.sp)
+                Text(if (hidden) "••••••" else amount, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Ink)
+                Text("Available", color = Muted, fontSize = 11.sp)
             }
+            Spacer(Modifier.width(5.dp))
+            Icon(Icons.Default.ChevronRight, null, tint = Muted)
         }
     }
 }
@@ -510,12 +511,24 @@ fun WalletDetailScreen(wallet: WalletBalance, hidden: Boolean, onBack: () -> Uni
         Text("Currency: " + wallet.code, color = Ink)
         Spacer(Modifier.height(8.dp))
         Text("Type: " + if (wallet.isCrypto) "Cryptocurrency" else "Fiat currency", color = Ink)
-        if (!wallet.address.isNullOrBlank()) {
+        if (wallet.isCrypto) {
+            Spacer(Modifier.height(18.dp))
+            Text("Receive address", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
             Spacer(Modifier.height(8.dp))
-            Text("Wallet address: " + wallet.address, color = Ink)
+            if (!wallet.address.isNullOrBlank()) {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Soft), shape = RoundedCornerShape(16.dp)) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(wallet.address, color = Ink, fontSize = 13.sp)
+                        Spacer(Modifier.height(6.dp))
+                        Text("Confirm the supported network with Nedu before sending funds.", color = Muted, fontSize = 11.sp)
+                    }
+                }
+            } else {
+                Text("A deposit address has not been provisioned for this wallet yet. Do not send USDT or USDC to an address from another network or service.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+            }
         }
         Spacer(Modifier.height(18.dp))
-        Text("Transaction history and transfers will appear here when secure wallet services are connected.", color = Muted)
+        Text("Transaction activity will appear here as verified wallet services become available.", color = Muted)
     }
 }
 @Composable
@@ -612,7 +625,9 @@ fun ProfileScreen(profile: AccountProfile?, onNavigate: (String) -> Unit, onEdit
             Text("Account & Support", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Ink)
             Spacer(Modifier.height(10.dp))
             listOf("Security & 2FA", "Backup & Recovery", "Notifications", "Help & Support", "Terms & Privacy").forEach { label ->
-                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
+                Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                    onNavigate("support-" + label.lowercase().replace(" & ", "-").replace(" ", "-"))
+                }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
                     Row(Modifier.fillMaxWidth().padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(label, Modifier.weight(1f), fontWeight = FontWeight.Medium, color = Ink)
                         Icon(Icons.Default.ChevronRight, null, tint = Muted)
@@ -686,6 +701,98 @@ fun EditProfileScreen(
 }
 
 @Composable
+fun ActionFlowScreen(action: String, wallets: List<WalletBalance>, onBack: () -> Unit) {
+    val title = when (action) { "send" -> "Send money"; "receive" -> "Receive money"; "swap" -> "Swap currencies"; else -> "Transfer between wallets" }
+    val description = when (action) {
+        "send" -> "Choose a wallet and recipient. Outgoing transfers remain protected until a verified payout or blockchain signing service is connected."
+        "receive" -> "Select a wallet to see its provisioned receiving details. Only use an address and network explicitly assigned to your account."
+        "swap" -> "Choose between USDT and USDC. A live executable quote and secure custody integration are required before conversion can be enabled."
+        else -> "Move funds between your own Nedu wallets only after the server-side transfer flow is enabled and tested."
+    }
+    var selectedCode by remember(action) { mutableStateOf(if (action == "swap") "USDT" else wallets.firstOrNull()?.code ?: "NGN") }
+    var secondCode by remember(action) { mutableStateOf("USDC") }
+    var amount by remember(action) { mutableStateOf("") }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(22.dp)) {
+        TextButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = DeepRed); Text("Back to wallets", color = DeepRed) }
+        Spacer(Modifier.height(10.dp))
+        Text(title, fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(8.dp))
+        Text(description, color = Muted, fontSize = 14.sp, lineHeight = 20.sp)
+        Spacer(Modifier.height(22.dp))
+        when (action) {
+            "receive" -> {
+                Text("Select receiving wallet", fontWeight = FontWeight.SemiBold, color = Ink)
+                wallets.forEach { w ->
+                    Card(Modifier.fillMaxWidth().padding(vertical = 5.dp).clickable { selectedCode = w.code }, colors = CardDefaults.cardColors(containerColor = if (selectedCode == w.code) Color(0xFFFFF0F1) else Soft), shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.padding(15.dp)) {
+                            Text("${w.name} (${w.code})", fontWeight = FontWeight.Bold, color = Ink)
+                            if (!w.address.isNullOrBlank()) Text(w.address, color = Ink, fontSize = 12.sp)
+                            else Text(if (w.isCrypto) "Address not yet provisioned" else "Account receiving details are not available in this wallet record", color = Muted, fontSize = 12.sp)
+                        }
+                    }
+                }
+                Text("Never send crypto until the exact network is confirmed. A missing address means deposits are not ready for that asset.", color = NeduRed, fontSize = 12.sp)
+            }
+            "swap" -> {
+                Text("From", fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("USDT", "USDC").forEach { code ->
+                        FilterChip(selected = selectedCode == code, onClick = { selectedCode = code; secondCode = if (code == "USDT") "USDC" else "USDT" }, label = { Text(code) })
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("To", fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("USDT", "USDC").filter { it != selectedCode }.forEach { code ->
+                        FilterChip(selected = secondCode == code, onClick = { secondCode = code }, label = { Text(code) })
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(value = amount, onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Spacer(Modifier.height(12.dp))
+                Text("Live rate unavailable — no conversion will be estimated or executed until the approved provider supplies a fresh quote.", color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                PrimaryButton("Swap temporarily unavailable", {}, enabled = false)
+            }
+            else -> {
+                Text("From wallet", fontWeight = FontWeight.SemiBold)
+                wallets.forEach { w ->
+                    if (w.code == selectedCode) Text("${w.name} · ${w.balance} ${w.code}", color = Ink)
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Amount", fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(value = amount, onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Spacer(Modifier.height(12.dp))
+                Text(if (action == "send") "Recipient details and payout execution are not yet connected." else "Internal transfer execution is not yet connected. No funds will be moved from this screen.", color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(12.dp))
+                PrimaryButton(if (action == "send") "Sending unavailable" else "Transfer unavailable", {}, enabled = false)
+            }
+        }
+    }
+}
+
+@Composable
+fun SupportDetailScreen(topic: String, onBack: () -> Unit) {
+    val title = topic.removePrefix("support-").split("-").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+    val detail = when (topic) {
+        "support-security-2fa" -> "Review account security and sign-in protection. Two-factor authentication controls will appear here when a verified MFA flow is enabled for this account."
+        "support-backup-recovery" -> "Keep your email and phone number up to date. Account recovery must be completed through verified Supabase authentication; never share your password or one-time codes."
+        "support-notifications" -> "Transaction and security notifications will be shown here when notification preferences and delivery are connected."
+        "support-help-support" -> "For help with your account, contact Nedu Wallet support through the official support channel. Never send your password, private key or recovery phrase."
+        else -> "Review the applicable Nedu Wallet terms and privacy information before using financial services. This section will display the approved current documents."
+    }
+    Column(Modifier.fillMaxSize().padding(22.dp)) {
+        TextButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = DeepRed); Text("Back to profile", color = DeepRed) }
+        Spacer(Modifier.height(16.dp))
+        Text(title, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(14.dp))
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Soft), shape = RoundedCornerShape(20.dp)) {
+            Text(detail, Modifier.padding(18.dp), color = Ink, fontSize = 15.sp, lineHeight = 23.sp)
+        }
+    }
+}
+
+@Composable
 fun BottomBar(selected: String, onNavigate: (String) -> Unit) {
     NavigationBar(containerColor = Color(0xFFFAFAFC)) {
         NavigationBarItem(selected == "home", onClick = { onNavigate("home") }, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Home") })
@@ -695,12 +802,12 @@ fun BottomBar(selected: String, onNavigate: (String) -> Unit) {
 }
 
 @Composable
-fun ActionTile(symbol: String, label: String, modifier: Modifier = Modifier) {
-    Card(modifier.height(86.dp), shape = RoundedCornerShape(18.dp),
+fun ActionTile(symbol: String, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(modifier.height(86.dp).clickable(onClick = onClick), shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text(symbol, color = DeepRed, fontSize = 27.sp)
-            Text(label, color = DeepRed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text(symbol, color = DeepRed, fontSize = 25.sp)
+            Text(label, color = DeepRed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
         }
     }
 }
