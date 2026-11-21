@@ -800,6 +800,75 @@ fun SupportDetailScreen(topic: String, onBack: () -> Unit) {
 }
 
 @Composable
+fun BillsScreen(onNavigate: (String) -> Unit, onBack: () -> Unit) {
+    val categories = listOf(
+        Triple("Mobile Airtime", "MTN, Airtel, Glo, 9mobile", "📱"),
+        Triple("Mobile Data", "Data bundles and subscriptions", "🌐"),
+        Triple("Electricity", "Prepaid and postpaid electricity", "⚡"),
+        Triple("Cable TV", "DStv, GOtv and StarTimes", "📺"),
+        Triple("Internet", "Home and business internet", "🛜"),
+        Triple("Other Local Bills", "Other supported Nigerian billers", "🧾")
+    )
+    Scaffold(bottomBar = { BottomBar("bills", onNavigate) }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(22.dp)) {
+            TextButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = DeepRed); Text("Back to Home", color = DeepRed) }
+            Text("Bills & Utilities", fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Text("Supported Nigerian airtime, data, electricity, cable TV and internet bills.", color = Muted, fontSize = 14.sp)
+            Spacer(Modifier.height(18.dp))
+            categories.forEach { (title, subtitle, emoji) ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 5.dp), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(emoji, fontSize = 25.sp); Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) { Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp); Text(subtitle, color = Muted, fontSize = 12.sp) }
+                        Icon(Icons.Default.ChevronRight, null, tint = Muted)
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)), shape = RoundedCornerShape(16.dp)) {
+                Text("Payments are not enabled yet. Provider catalogue lookup, customer validation, atomic wallet debit, provider confirmation and automatic refunds must be completed before money can be taken. This screen cannot debit your wallet.", Modifier.padding(16.dp), color = Ink, fontSize = 13.sp, lineHeight = 19.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun CryptoWalletScreen(onBack: () -> Unit) {
+    Scaffold(bottomBar = { BottomBar("crypto") { } }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(22.dp)) {
+            TextButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null, tint = DeepRed); Text("Back to Home", color = DeepRed) }
+            Text("Crypto Wallets", fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Text("Separate self-custody section. Fiat balances are not shown here.", color = Muted, fontSize = 14.sp)
+            Spacer(Modifier.height(18.dp))
+            listOf(
+                Triple("TRON · TRC20", "USDT supported; native USDC is not offered", "USDT"),
+                Triple("BNB Smart Chain · BEP20", "Binance-Peg tokens, clearly distinguished from issuer-native tokens", "USDT / USDC"),
+                Triple("Solana · SPL", "Native USDT and USDC", "USDT / USDC")
+            ).forEach { (network, detail, assets) ->
+                Card(Modifier.fillMaxWidth().padding(vertical = 6.dp), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Soft)) {
+                    Column(Modifier.padding(17.dp)) {
+                        Text(network, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(detail, color = Muted, fontSize = 13.sp)
+                        Spacer(Modifier.height(7.dp)); Text(assets, color = DeepRed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Wallet creation and import are not activated yet", color = Ink, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Text("Do not enter a recovery phrase or send funds in this build. Secure generation, 12/24-word backup verification, wallet import/recovery, Android Keystore encryption and on-device signing require the audited wallet SDK dependency and a successful device test.", color = Ink, fontSize = 13.sp, lineHeight = 19.sp)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text("Network gas fees", fontWeight = FontWeight.Bold, color = Ink)
+            Text("TRON uses TRX, BNB Smart Chain uses BNB, and Solana uses SOL for network fees.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
+        }
+    }
+}
+
+@Composable
 fun BottomBar(selected: String, onNavigate: (String) -> Unit) {
     NavigationBar(containerColor = Color(0xFFFAFAFC)) {
         NavigationBarItem(selected == "home", onClick = { onNavigate("home") }, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Home") })
