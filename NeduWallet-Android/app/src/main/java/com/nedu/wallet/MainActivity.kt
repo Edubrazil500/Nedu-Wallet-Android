@@ -67,6 +67,7 @@ fun NeduApp() {
     var authNotice by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var wallets by remember { mutableStateOf<List<WalletBalance>>(emptyList()) }
+    var selectedWallet by remember { mutableStateOf<WalletBalance?>(null) }
     var profile by remember { mutableStateOf<AccountProfile?>(null) }
     val scope = rememberCoroutineScope()
     val walletRepository = remember {
@@ -161,6 +162,7 @@ fun NeduApp() {
                     onCreate = { authError = null; authNotice = null; screen = "signup" }
                 )
                 "home" -> WalletHome(wallets, hideBalance, { hideBalance = !hideBalance }, onNavigate = { screen = it }, onWalletClick = { selectedWallet = it; screen = "wallet-detail" })
+                "wallet-detail" -> selectedWallet?.let { WalletDetailScreen(it, hideBalance) { screen = "home" } } ?: run { screen = "home" }
                 "card" -> CardScreen(onNavigate = { screen = it })
                 "edit-profile" -> EditProfileScreen(
                     profile = profile,
@@ -441,6 +443,38 @@ fun WalletRow(flag: String, name: String, code: String, amount: String, hidden: 
     }
 }
 
+@Composable
+fun WalletDetailScreen(wallet: WalletBalance, hidden: Boolean, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp)) {
+        TextButton(onClick = onBack) {
+            Icon(Icons.Default.ArrowBack, null, tint = DeepRed)
+            Text("Back to wallets", color = DeepRed)
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(wallet.name, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Text(wallet.code, color = Muted)
+        Spacer(Modifier.height(22.dp))
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = DeepRed)) {
+            Column(Modifier.background(Brush.horizontalGradient(listOf(NeduRed, DeepRed))).padding(24.dp)) {
+                Text("Available balance", color = Color.White.copy(.8f))
+                Spacer(Modifier.height(8.dp))
+                Text(if (hidden) "••••••" else wallet.balance + " " + wallet.code, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(Modifier.height(22.dp))
+        Text("Wallet information", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+        Text("Currency: " + wallet.code, color = Ink)
+        Spacer(Modifier.height(8.dp))
+        Text("Type: " + if (wallet.isCrypto) "Cryptocurrency" else "Fiat currency", color = Ink)
+        if (!wallet.address.isNullOrBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text("Wallet address: " + wallet.address, color = Ink)
+        }
+        Spacer(Modifier.height(18.dp))
+        Text("Transaction history and transfers will appear here when secure wallet services are connected.", color = Muted)
+    }
+}
 @Composable
 fun CardScreen(onNavigate: (String) -> Unit) {
     Scaffold(bottomBar = { BottomBar("card", onNavigate) }) { padding ->
