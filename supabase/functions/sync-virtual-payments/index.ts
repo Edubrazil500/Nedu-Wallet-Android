@@ -5,7 +5,8 @@ const headers = {
   "Content-Type": "application/json",
   "Cache-Control": "no-store",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Headers":
+    "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const reply = (data: unknown, status = 200) =>
@@ -27,8 +28,11 @@ serve(async (req) => {
       global: { headers: { Authorization: authorization } },
       auth: { persistSession: false },
     });
-    const { data: authData, error: authError } = await userClient.auth.getUser();
-    if (authError || !authData.user) return reply({ error: "Invalid session" }, 401);
+    const { data: authData, error: authError } = await userClient.auth
+      .getUser();
+    if (authError || !authData.user) {
+      return reply({ error: "Invalid session" }, 401);
+    }
 
     const environment = Deno.env.get("FLW_ENVIRONMENT");
     const liveEnabled = Deno.env.get("FLW_LIVE_ENABLED") === "true";
@@ -37,7 +41,9 @@ serve(async (req) => {
       environment !== "live" || !liveEnabled ||
       !secret.startsWith("FLWSECK-") || secret.startsWith("FLWSECK_TEST-")
     ) {
-      return reply({ error: "Flutterwave Live sync is not enabled on the server." }, 503);
+      return reply({
+        error: "Flutterwave Live sync is not enabled on the server.",
+      }, 503);
     }
 
     const admin = createClient(url, service, {
@@ -52,7 +58,10 @@ serve(async (req) => {
       profileError || !profile?.virtual_account_number ||
       !profile?.virtual_order_ref
     ) {
-      return reply({ error: "This virtual account needs provider reconciliation before payment sync." }, 409);
+      return reply({
+        error:
+          "This virtual account needs provider reconciliation before payment sync.",
+      }, 409);
     }
 
     const fromDate = new Date(profile.created_at || Date.now() - 365 * 86400000)
@@ -71,17 +80,29 @@ serve(async (req) => {
       endpoint.searchParams.set("currency", "NGN");
 
       const listResponse = await fetch(endpoint, {
-        headers: { Authorization: "Bearer " + secret, Accept: "application/json" },
+        headers: {
+          Authorization: "Bearer " + secret,
+          Accept: "application/json",
+        },
         signal: AbortSignal.timeout(20000),
       });
       const list = await listResponse.json();
-      if (!listResponse.ok || list?.status !== "success" || !Array.isArray(list.data)) {
-        return reply({ error: "Flutterwave could not retrieve transactions for this account reference." }, 502);
+      if (
+        !listResponse.ok || list?.status !== "success" ||
+        !Array.isArray(list.data)
+      ) {
+        return reply({
+          error:
+            "Flutterwave could not retrieve transactions for this account reference.",
+        }, 502);
       }
       transactions.push(...list.data);
       totalPages = Number(list?.meta?.page_info?.total_pages ?? 1);
       if (!Number.isInteger(totalPages) || totalPages < 1 || totalPages > 100) {
-        return reply({ error: "Too many transactions for automatic reconciliation. Contact support." }, 409);
+        return reply({
+          error:
+            "Too many transactions for automatic reconciliation. Contact support.",
+        }, 409);
       }
     }
 
@@ -93,9 +114,13 @@ serve(async (req) => {
       if (!/^\d+$/.test(id)) continue;
 
       const verifyResponse = await fetch(
-        "https://api.flutterwave.com/v3/transactions/" + encodeURIComponent(id) + "/verify",
+        "https://api.flutterwave.com/v3/transactions/" +
+          encodeURIComponent(id) + "/verify",
         {
-          headers: { Authorization: "Bearer " + secret, Accept: "application/json" },
+          headers: {
+            Authorization: "Bearer " + secret,
+            Accept: "application/json",
+          },
           signal: AbortSignal.timeout(15000),
         },
       );
@@ -119,7 +144,10 @@ serve(async (req) => {
           p_tx_ref: String(tx.tx_ref),
           p_amount: Number(tx.amount),
           p_currency: "NGN",
-          p_payload: { flw_ref: tx.flw_ref ?? null, payment_type: tx.payment_type ?? null },
+          p_payload: {
+            flw_ref: tx.flw_ref ?? null,
+            payment_type: tx.payment_type ?? null,
+          },
         },
       );
       if (creditError) throw creditError;
