@@ -93,8 +93,7 @@ serve(async (req) => {
     });
 
     if (action === "status") {
-      const enabled =
-        Deno.env.get("FLW_ENVIRONMENT") === "live" &&
+      const enabled = Deno.env.get("FLW_ENVIRONMENT") === "live" &&
         Deno.env.get("FLW_LIVE_ENABLED") === "true" &&
         Deno.env.get("FLW_BILLS_LIVE_ENABLED") === "true" &&
         Deno.env.get("FLW_BILLS_IP_WHITELIST_CONFIRMED") === "true";
