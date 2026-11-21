@@ -3,7 +3,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(12);
+select plan(42);
 
 -- Simulate two Supabase Auth signups. The auth.users trigger must provision
 -- each profile, NGN wallet, and wallet ledger account atomically.
@@ -148,6 +148,297 @@ $$;
 
 select ok(pg_temp.ledger_update_is_rejected(),
   'Posted ledger entries cannot be updated');
+
+-- Bill purchases are server-only. The service role reserves funds atomically,
+-- while authenticated clients cannot create or settle purchases directly.
+select ok(
+  not has_table_privilege('authenticated', 'public.purchase_transactions', 'INSERT'),
+  'Authenticated clients cannot insert purchase records'
+);
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.reserve_wallet_purchase(uuid,uuid,text,numeric)',
+    'EXECUTE'
+  ),
+  'Authenticated clients cannot reserve wallet funds'
+);
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.reserve_wallet_purchase(uuid,uuid,text,numeric)',
+    'EXECUTE'
+  ),
+  'Service role can reserve wallet funds'
+);
+select ok(
+  has_table_privilege('service_role', 'public.purchase_transactions', 'INSERT'),
+  'Service role can create purchase records'
+);
+
+update public.profiles
+set kyc_status = 'Verified',
+    kyc_bvn_verified_at = now(),
+    kyc_nin_verified_at = now()
+where id = '10000000-0000-4000-8000-000000000001';
+
+update public.wallets
+set balance = 5000
+where user_id = '10000000-0000-4000-8000-000000000001'
+  and code = 'NGN';
+
+insert into public.purchase_transactions (
+  id, user_id, type, category, provider, provider_code, account_number,
+  amount, currency, pay_from_wallet, status, provider_reference, metadata
+) values
+  (
+    '20000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000001',
+    'bills', 'POWER', 'Flutterwave', 'BIL100', '12345678901',
+    500, 'NGN', 'NGN', 'pending', 'NEDU-BILL-TEST-ONE',
+    '{"item_code":"POWER-PREPAID"}'
+  ),
+  (
+    '20000000-0000-4000-8000-000000000002',
+    '10000000-0000-4000-8000-000000000001',
+    'bills', 'POWER', 'Flutterwave', 'BIL100', '12345678901',
+    250, 'NGN', 'NGN', 'pending', 'NEDU-BILL-TEST-TWO',
+    '{"item_code":"POWER-PREPAID"}'
+  ),
+  (
+    '20000000-0000-4000-8000-000000000003',
+    '10000000-0000-4000-8000-000000000002',
+    'bills', 'POWER', 'Flutterwave', 'BIL100', '12345678902',
+    100, 'NGN', 'NGN', 'pending', 'NEDU-BILL-TEST-THREE',
+    '{"item_code":"POWER-PREPAID"}'
+  ),
+  (
+    '20000000-0000-4000-8000-000000000004',
+    '10000000-0000-4000-8000-000000000001',
+    'bills', 'POWER', 'Flutterwave', 'BIL100', '12345678901',
+    500, 'NGN', 'NGN', 'pending', 'NEDU-BILL-TEST-FOUR',
+    '{"item_code":"POWER-PREPAID"}'
+  );
+
+select is(
+  public.reserve_wallet_purchase(
+    '20000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000001',
+    'NGN',
+    500
+  ),
+  true,
+  'Verified user can reserve NGN for a bill'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
+  4500::numeric,
+  'Reservation debits the wallet exactly once'
+);
+create function pg_temp.duplicate_active_bill_reservation_is_rejected()
+returns boolean
+language plpgsql
+as $
+begin
+  perform public.reserve_wallet_purchase(
+    '20000000-0000-4000-8000-000000000004',
+    '10000000-0000-4000-8000-000000000001',
+    'NGN',
+    500
+  );
+  return false;
+exception
+  when unique_violation then return true;
+end;
+$;
+
+select ok(
+  pg_temp.duplicate_active_bill_reservation_is_rejected(),
+  'Concurrent duplicate bill reservation for the same account is rejected'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
+  4500::numeric,
+  'Rejected duplicate bill reservation cannot debit the wallet'
+);
+
+select is(
+  (select status || ':' || wallet_debit_status
+   from public.purchase_transactions
+   where id = '20000000-0000-4000-8000-000000000001'),
+  'processing:reserved',
+  'Reservation marks the purchase as processing and reserved'
+);
+select ok(
+  (select wallet_transaction_id is not null
+   from public.purchase_transactions
+   where id = '20000000-0000-4000-8000-000000000001'),
+  'Reservation links a wallet transaction history row'
+);
+select is(
+  (select status from public.transactions
+   where id = (select wallet_transaction_id from public.purchase_transactions
+     where id = '20000000-0000-4000-8000-000000000001')),
+  'pending',
+  'Wallet history shows the bill payment as pending while provider confirms'
+);
+select is(
+  public.settle_wallet_purchase(
+    '20000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000001',
+    'pending'
+  ),
+  'reserved',
+  'Pending provider result keeps the funds reserved'
+);
+select is(
+  (select status || ':' || wallet_debit_status
+   from public.purchase_transactions
+   where id = '20000000-0000-4000-8000-000000000001'),
+  'review:reserved',
+  'Pending provider result moves the purchase to review'
+);
+select is(
+  (select status from public.transactions
+   where id = (select wallet_transaction_id from public.purchase_transactions
+     where id = '20000000-0000-4000-8000-000000000001')),
+  'pending',
+  'Pending provider result keeps wallet history pending'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
+  4500::numeric,
+  'Pending provider result does not release reserved funds'
+);
+select is(
+  public.settle_wallet_purchase(
+    '20000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000001',
+    'failed'
+  ),
+  'refunded',
+  'Confirmed provider failure refunds the reservation'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
+  5000::numeric,
+  'Failed purchase restores the exact reserved amount'
+);
+select is(
+  (select status from public.transactions
+   where id = (select wallet_transaction_id from public.purchase_transactions
+     where id = '20000000-0000-4000-8000-000000000001')),
+  'refunded',
+  'Wallet history records the confirmed bill refund'
+);
+select is(
+  public.settle_wallet_purchase(
+    '20000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000001',
+    'failed'
+  ),
+  'refunded',
+  'Repeated failure settlement is idempotent'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
+  5000::numeric,
+  'Repeated failure cannot issue a second refund'
+);
+select is(
+  public.reserve_wallet_purchase(
+    '20000000-0000-4000-8000-000000000002',
+    '10000000-0000-4000-8000-000000000001',
+    'NGN',
+    250
+  ),
+  true,
+  'A second verified purchase can reserve funds'
+);
+select is(
+  public.settle_wallet_purchase(
+    '20000000-0000-4000-8000-000000000002',
+    '10000000-0000-4000-8000-000000000001',
+    'successful'
+  ),
+  'settled',
+  'Confirmed provider success settles the reservation'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
+  4750::numeric,
+  'Successful purchase retains only the exact bill amount'
+);
+select is(
+  (select status || ':' || wallet_debit_status
+   from public.purchase_transactions
+   where id = '20000000-0000-4000-8000-000000000002'),
+  'success:settled',
+  'Successful purchase is marked settled'
+);
+select is(
+  (select status from public.transactions
+   where id = (select wallet_transaction_id from public.purchase_transactions
+     where id = '20000000-0000-4000-8000-000000000002')),
+  'completed',
+  'Wallet history records the confirmed successful bill payment'
+);
+select is(
+  public.settle_wallet_purchase(
+    '20000000-0000-4000-8000-000000000002',
+    '10000000-0000-4000-8000-000000000001',
+    'failed'
+  ),
+  'settled',
+  'A later failure callback cannot refund a settled purchase'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000001' and code = 'NGN'),
+  4750::numeric,
+  'A settled purchase cannot be credited back by a duplicate callback'
+);
+
+create function pg_temp.unverified_bill_reservation_is_rejected()
+returns boolean
+language plpgsql
+as $
+begin
+  perform public.reserve_wallet_purchase(
+    '20000000-0000-4000-8000-000000000003',
+    '10000000-0000-4000-8000-000000000002',
+    'NGN',
+    100
+  );
+  return false;
+exception
+  when others then return true;
+end;
+$;
+
+select ok(
+  pg_temp.unverified_bill_reservation_is_rejected(),
+  'User without verified BVN and NIN cannot reserve bill funds'
+);
+select is(
+  (select balance from public.wallets
+   where user_id = '10000000-0000-4000-8000-000000000002' and code = 'NGN'),
+  0::numeric,
+  'KYC rejection leaves the unverified wallet unchanged'
+);
+select is(
+  (select status || ':' || wallet_debit_status
+   from public.purchase_transactions
+   where id = '20000000-0000-4000-8000-000000000003'),
+  'pending:not_reserved',
+  'KYC rejection leaves the purchase unreserved'
+);
 
 select * from finish();
 rollback;
