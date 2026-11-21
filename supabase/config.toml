@@ -61,3 +61,6 @@ verify_jwt = true
 
 [functions.swap-wallet]
 verify_jwt = true
+
+[functions.quick-service]
+verify_jwt = true
