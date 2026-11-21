@@ -1,6 +1,6 @@
 # Nedu Wallet — real-money release gate
 
-**Status: NOT APPROVED FOR LIVE CUSTOMER FUNDS.** This document is a release checklist, not authorization to deploy. Current branch work is development-only. The existing production Supabase project and iOS app must be preserved.
+**Status: NOT APPROVED FOR LIVE CUSTOMER FUNDS.** This document is a release checklist, not authorization to deploy. The existing production Supabase project and iOS app must be preserved. Guarded Edge Function updates and additive security migrations have been deployed to the existing Supabase project; real-money operations remain gated.
 
 ## What is confirmed
 
@@ -65,7 +65,7 @@
 
 - The `resolve-account` Edge Function now recognizes an explicitly selected Live environment only when `FLW_ENVIRONMENT=live`, the configured secret is a non-test Flutterwave secret, and `FLW_LIVE_ENABLED=true`.
 - `FLW_LIVE_ENABLED` must remain unset or false during development and review. This is a bank-account name-resolution endpoint only; it does not create accounts, charge customers, transfer funds, or credit wallets.
-- This code change has not been deployed to Supabase and has not made a Live API request.
+- The hardened resolver has been deployed but remains gated by FLW_ENVIRONMENT=live and FLW_LIVE_ENABLED=true. No Live API request has been made.
 - Before any production enablement, verify the exact Flutterwave account-resolution contract, rate limits, costs, KYC/consent requirements, monitoring, and rollback procedure. Require a separate explicit owner approval.
 - This gate does not authorize enabling any other Live payment, virtual-account, webhook, deposit, withdrawal, transfer, swap, or card operation.
 
