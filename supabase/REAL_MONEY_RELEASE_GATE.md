@@ -61,6 +61,14 @@
 - [ ] Establish daily provider-to-ledger reconciliation, exception handling, support escalation, incident response, backups, restore tests, and a tested rollback plan.
 - [ ] Obtain qualified Nigerian legal/compliance review and all required regulatory, banking, and Flutterwave approvals for the actual wallet, custody, payment, FX, and transfer activities.
 
+## Live-mode code preparation (not deployment authorization)
+
+- The `resolve-account` Edge Function now recognizes an explicitly selected Live environment only when `FLW_ENVIRONMENT=live`, the configured secret is a non-test Flutterwave secret, and `FLW_LIVE_ENABLED=true`.
+- `FLW_LIVE_ENABLED` must remain unset or false during development and review. This is a bank-account name-resolution endpoint only; it does not create accounts, charge customers, transfer funds, or credit wallets.
+- This code change has not been deployed to Supabase and has not made a Live API request.
+- Before any production enablement, verify the exact Flutterwave account-resolution contract, rate limits, costs, KYC/consent requirements, monitoring, and rollback procedure. Require a separate explicit owner approval.
+- This gate does not authorize enabling any other Live payment, virtual-account, webhook, deposit, withdrawal, transfer, swap, or card operation.
+
 ## Unsafe migration explicitly excluded
 
 Do **not** deploy `supabase/migrations/20261120150000_supabase_foundation.sql` to the existing project. It assumes an incompatible schema and could damage compatibility with the live iOS app. Only additive, reviewed migrations may be considered after staging tests and a production backup.
